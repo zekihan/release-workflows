@@ -148,8 +148,17 @@ jobs:
         path: artifact
         merge-multiple: true
     - run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends skopeo
+        if ! command -v skopeo >/dev/null; then
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends skopeo
+        fi
+    - name: Verify prepared artifact before registry login
+      env:
+        EXPECTED_SHA256: ${{ needs.build.outputs.sha256 }}
+        ARTIFACT_PATH: artifact/manifest.json
+      run: |
+        [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]
+        printf "%s  %s\n" "$EXPECTED_SHA256" "$ARTIFACT_PATH" | sha256sum --strict --check -
     - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
       with:
         registry: ghcr.io

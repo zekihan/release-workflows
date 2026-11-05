@@ -49,8 +49,10 @@ jobs:
         fetch-depth: 0
         persist-credentials: false
     - run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends skopeo
+        if ! command -v skopeo >/dev/null; then
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends skopeo
+        fi
       if: ${{ inputs.image != '' }}
     - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
       with:

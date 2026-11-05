@@ -46,7 +46,7 @@ def checkout():
 
 def registry_setup():
     return [
-        {'run': 'sudo apt-get update -qq\nsudo apt-get install -y --no-install-recommends skopeo\n'},
+        {'run': 'if ! command -v skopeo >/dev/null; then\n  sudo apt-get update -qq\n  sudo apt-get install -y --no-install-recommends skopeo\nfi\n'},
         action('login', **{'with': {'registry': 'ghcr.io', 'username': '${{ github.actor }}', 'password': '${{ github.token }}'}}),
         action('login', **{'with': {'username': '${{ secrets.DOCKER_USERNAME }}', 'password': '${{ secrets.DOCKER_PASSWORD }}'}}),
     ]
@@ -202,7 +202,7 @@ PY
                     'permissions': {'contents': 'write', 'packages': 'write'},
                     'steps': [checkout(),
                         action('download', **{'with': {'artifact-ids': '${{ needs.build.outputs.artifact }}', 'path': 'artifact', 'merge-multiple': True}}),
-                        {'run': 'sudo apt-get update -qq\nsudo apt-get install -y --no-install-recommends skopeo\n'},
+                        {'run': 'if ! command -v skopeo >/dev/null; then\n  sudo apt-get update -qq\n  sudo apt-get install -y --no-install-recommends skopeo\nfi\n'},
                         *[step | {'if': "${{ inputs.image != '' }}"} for step in registry_setup()[1:]],
                         action('helm', **{'if': "${{ inputs.chart-path != '' }}", 'with': {'version': 'v4.3.1'}}),
                         {'if': "${{ inputs.chart-path != '' }}", 'env': {'TOKEN': '${{ github.token }}'},
@@ -214,6 +214,16 @@ PY
                          'run': embedded('finalize.py')}]}
     }
 }
+
+# Verify the build job's checksum before introducing registry credentials.
+for workflow in [image, release]:
+    steps = workflow['jobs']['publish']['steps']
+    first_login = next(i for i, step in enumerate(steps) if step.get('uses') == PINS['login'])
+    checksum = '${{ inputs.native-arm && steps.merge.outputs.sha256 || needs.build.outputs.sha256 }}' if workflow is image else '${{ needs.build.outputs.sha256 }}'
+    path = 'artifact/image.tar' if workflow is image else 'artifact/manifest.json'
+    steps.insert(first_login, {'name': 'Verify prepared artifact before registry login',
+        'env': {'EXPECTED_SHA256': checksum, 'ARTIFACT_PATH': path},
+        'run': '[[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]\nprintf "%s  %s\\n" "$EXPECTED_SHA256" "$ARTIFACT_PATH" | sha256sum --strict --check -\n'})
 
 def main():
     workflows = {'decide.yaml': decide, 'image.yaml': image, 'release.yaml': release}
