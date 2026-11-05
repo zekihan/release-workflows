@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 
-def fixture_archive(directory):
+def fixture_archive(directory, architectures=('amd64', 'arm64'), indexed=True):
     root = Path(directory) / 'layout'
     (root / 'blobs/sha256').mkdir(parents=True)
 
@@ -26,7 +26,7 @@ def fixture_archive(directory):
         pass
     layer = blob(buffer.getvalue(), 'application/vnd.oci.image.layer.v1.tar')
     manifests = []
-    for arch in ['amd64', 'arm64']:
+    for arch in architectures:
         config = document({'architecture': arch, 'os': 'linux', 'rootfs': {'type': 'layers', 'diff_ids': [layer['digest']]},
                            'config': {'Labels': {'org.opencontainers.image.revision': 'a' * 40,
                                                  'org.opencontainers.image.version': '1.0.0',
@@ -36,6 +36,9 @@ def fixture_archive(directory):
                                   'application/vnd.oci.image.manifest.v1+json', platform={'os': 'linux', 'architecture': arch}))
     index = document({'schemaVersion': 2, 'mediaType': 'application/vnd.oci.image.index.v1+json', 'manifests': manifests},
                      'application/vnd.oci.image.index.v1+json')
+    if not indexed:
+        assert len(manifests) == 1
+        index = manifests[0]
     (root / 'index.json').write_text(json.dumps({'schemaVersion': 2, 'manifests': [index]}))
     (root / 'oci-layout').write_text('{"imageLayoutVersion":"1.0.0"}')
     archive = Path(directory) / 'image.tar'

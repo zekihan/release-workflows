@@ -64,3 +64,32 @@ class FinalizeTests(unittest.TestCase):
         state = {'ghcr.io/owner/app:latest': {'digest': 'legacy', 'version': '0', 'revision': 'a' * 40}}
         writes = self.run_finalize(state)
         self.assertEqual(len(writes), 2)
+
+    def test_github_latest_considers_releases_beyond_first_page(self):
+        namespace = {}
+        for script in ['policy.py', 'registry.py']:
+            exec(compile((ROOT / 'scripts' / script).read_text(), script, 'exec'), namespace)
+        calls = []
+        pages = []
+        def github(endpoint):
+            pages.append(endpoint)
+            version, count = ('1.0.0', 100) if endpoint.endswith('page=1') else ('3.0.0', 1)
+            return [{'tag_name': 'v' + version, 'prerelease': False, 'draft': False}] * count
+        namespace.update(github=github, command=lambda args: calls.append(args) or b'')
+        with tempfile.TemporaryDirectory() as directory:
+            before = Path.cwd()
+            os.chdir(directory)
+            try:
+                Path('artifact').mkdir()
+                Path('artifact/manifest.json').write_bytes(b'{}')
+                env = {'VERSION': '2.0.0', 'GITHUB_REF': 'refs/tags/v2.0.0',
+                       'MANIFEST_SHA256': hashlib.sha256(b'{}').hexdigest(), 'IMAGE': '',
+                       'GITHUB_RELEASE': 'true', 'GITHUB_REPOSITORY': 'owner/app'}
+                import subprocess
+                with patch.dict(os.environ, env), patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)):
+                    exec(compile((ROOT / 'scripts/finalize.py').read_text(), 'finalize.py', 'exec'), namespace)
+            finally:
+                os.chdir(before)
+        self.assertEqual(len(pages), 2)
+        self.assertIn('--latest=false', calls[-1])
+        self.assertIn('--verify-tag', calls[-1])

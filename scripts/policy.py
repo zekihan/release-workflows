@@ -59,9 +59,11 @@ def assert_forward(current, candidate, is_ancestor):
         raise ValueError('Refusing to replace a newer or unrelated source revision')
 
 
-def validate_platforms(index, required):
+def validate_platforms(index, required, single_platform=None):
     actual = {f"{m.get('platform', {}).get('os')}/{m.get('platform', {}).get('architecture')}"
               for m in index.get('manifests', [])}
+    if 'manifests' not in index and single_platform:
+        actual = {single_platform}
     missing = set(required.split(',')) - actual
     if missing:
         raise ValueError(f'Missing image platforms: {sorted(missing)}')

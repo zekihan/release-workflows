@@ -10,7 +10,7 @@ def promote():
     fingerprint = os.environ['FINGERPRINT']
     if candidate['revision'] != sha or candidate['fingerprint'] != fingerprint:
         raise ValueError('Archive source identity does not match the requested publication')
-    validate_platforms(candidate['index'], os.environ['PLATFORMS'])
+    validate_platforms(candidate['index'], os.environ['PLATFORMS'], candidate.get('platform'))
     names = image_names()
     if mode == 'release':
         stable_version(version)

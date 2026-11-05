@@ -60,9 +60,15 @@ def finalize():
                 verify_archive(f'existing-release/{name}', manifest[name])
         print('Release already exists with matching assets')
         return
-    releases = json.loads(command(['gh', 'release', 'list', '--limit', '100', '--json', 'tagName,isPrerelease,isDraft']))
-    stable = [stable_version(item['tagName'].removeprefix('v')) for item in releases
-              if not item['isPrerelease'] and not item['isDraft']]
+    stable = []
+    page = 1
+    while True:
+        releases = github(f'repos/{os.environ["GITHUB_REPOSITORY"]}/releases?per_page=100&page={page}')
+        stable.extend(stable_version(item['tag_name'].removeprefix('v')) for item in releases
+                      if not item['prerelease'] and not item['draft'])
+        if len(releases) < 100:
+            break
+        page += 1
     newest = not stable or stable_version(version) > max(stable)
     args = ['gh', 'release', 'create', tag, '--verify-tag', '--title', tag, f'--latest={str(newest).lower()}']
     if 'CHANGELOG.md' in manifest:

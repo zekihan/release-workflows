@@ -25,7 +25,8 @@ def inspect_image(reference):
     metadata = json.loads(command(['skopeo', 'inspect', '--override-os', 'linux', '--override-arch', 'amd64', reference]))
     return {'digest': metadata['Digest'], 'revision': metadata.get('Labels', {}).get('org.opencontainers.image.revision'),
             'version': metadata.get('Labels', {}).get('org.opencontainers.image.version'),
-            'fingerprint': metadata.get('Labels', {}).get('io.zekihan.build-inputs'), 'index': json.loads(raw)}
+            'fingerprint': metadata.get('Labels', {}).get('io.zekihan.build-inputs'), 'index': json.loads(raw),
+            'platform': f"{metadata.get('Os')}/{metadata.get('Architecture')}"}
 
 
 def github(endpoint):

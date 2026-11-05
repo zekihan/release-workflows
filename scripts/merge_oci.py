@@ -39,9 +39,15 @@ def merge_archives(sources, destination):
             if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
                 raise ValueError('Invalid OCI digest')
             built = json.loads((blobs / digest.split(':')[1]).read_text())
-            if 'manifests' not in built:
-                raise ValueError('Expected BuildKit image index')
-            manifests.extend(built['manifests'])
+            if 'manifests' in built:
+                manifests.extend(built['manifests'])
+            else:
+                config_digest = built['config']['digest']
+                if not re.fullmatch(r'sha256:[0-9a-f]{64}', config_digest):
+                    raise ValueError('Invalid OCI config digest')
+                config = json.loads((blobs / config_digest.split(':')[1]).read_text())
+                platform = {key: config[key] for key in ('os', 'architecture', 'variant') if key in config}
+                manifests.append(descriptor | {'platform': platform})
         image_index = {'schemaVersion': 2, 'mediaType': 'application/vnd.oci.image.index.v1+json', 'manifests': manifests}
         validate_platforms(image_index, 'linux/amd64,linux/arm64')
         data = json.dumps(image_index, separators=(',', ':')).encode()

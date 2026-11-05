@@ -215,9 +215,11 @@ jobs:
                 raise ValueError('Refusing to replace a newer or unrelated source revision')
 
 
-        def validate_platforms(index, required):
+        def validate_platforms(index, required, single_platform=None):
             actual = {f"{m.get('platform', {}).get('os')}/{m.get('platform', {}).get('architecture')}"
                       for m in index.get('manifests', [])}
+            if 'manifests' not in index and single_platform:
+                actual = {single_platform}
             missing = set(required.split(',')) - actual
             if missing:
                 raise ValueError(f'Missing image platforms: {sorted(missing)}')
@@ -249,7 +251,8 @@ jobs:
             metadata = json.loads(command(['skopeo', 'inspect', '--override-os', 'linux', '--override-arch', 'amd64', reference]))
             return {'digest': metadata['Digest'], 'revision': metadata.get('Labels', {}).get('org.opencontainers.image.revision'),
                     'version': metadata.get('Labels', {}).get('org.opencontainers.image.version'),
-                    'fingerprint': metadata.get('Labels', {}).get('io.zekihan.build-inputs'), 'index': json.loads(raw)}
+                    'fingerprint': metadata.get('Labels', {}).get('io.zekihan.build-inputs'), 'index': json.loads(raw),
+                    'platform': f"{metadata.get('Os')}/{metadata.get('Architecture')}"}
 
 
         def github(endpoint):
@@ -359,9 +362,15 @@ jobs:
                     if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
                         raise ValueError('Invalid OCI digest')
                     built = json.loads((blobs / digest.split(':')[1]).read_text())
-                    if 'manifests' not in built:
-                        raise ValueError('Expected BuildKit image index')
-                    manifests.extend(built['manifests'])
+                    if 'manifests' in built:
+                        manifests.extend(built['manifests'])
+                    else:
+                        config_digest = built['config']['digest']
+                        if not re.fullmatch(r'sha256:[0-9a-f]{64}', config_digest):
+                            raise ValueError('Invalid OCI config digest')
+                        config = json.loads((blobs / config_digest.split(':')[1]).read_text())
+                        platform = {key: config[key] for key in ('os', 'architecture', 'variant') if key in config}
+                        manifests.append(descriptor | {'platform': platform})
                 image_index = {'schemaVersion': 2, 'mediaType': 'application/vnd.oci.image.index.v1+json', 'manifests': manifests}
                 validate_platforms(image_index, 'linux/amd64,linux/arm64')
                 data = json.dumps(image_index, separators=(',', ':')).encode()
@@ -487,9 +496,11 @@ jobs:
                 raise ValueError('Refusing to replace a newer or unrelated source revision')
 
 
-        def validate_platforms(index, required):
+        def validate_platforms(index, required, single_platform=None):
             actual = {f"{m.get('platform', {}).get('os')}/{m.get('platform', {}).get('architecture')}"
                       for m in index.get('manifests', [])}
+            if 'manifests' not in index and single_platform:
+                actual = {single_platform}
             missing = set(required.split(',')) - actual
             if missing:
                 raise ValueError(f'Missing image platforms: {sorted(missing)}')
@@ -521,7 +532,8 @@ jobs:
             metadata = json.loads(command(['skopeo', 'inspect', '--override-os', 'linux', '--override-arch', 'amd64', reference]))
             return {'digest': metadata['Digest'], 'revision': metadata.get('Labels', {}).get('org.opencontainers.image.revision'),
                     'version': metadata.get('Labels', {}).get('org.opencontainers.image.version'),
-                    'fingerprint': metadata.get('Labels', {}).get('io.zekihan.build-inputs'), 'index': json.loads(raw)}
+                    'fingerprint': metadata.get('Labels', {}).get('io.zekihan.build-inputs'), 'index': json.loads(raw),
+                    'platform': f"{metadata.get('Os')}/{metadata.get('Architecture')}"}
 
 
         def github(endpoint):
@@ -602,7 +614,7 @@ jobs:
             fingerprint = os.environ['FINGERPRINT']
             if candidate['revision'] != sha or candidate['fingerprint'] != fingerprint:
                 raise ValueError('Archive source identity does not match the requested publication')
-            validate_platforms(candidate['index'], os.environ['PLATFORMS'])
+            validate_platforms(candidate['index'], os.environ['PLATFORMS'], candidate.get('platform'))
             names = image_names()
             if mode == 'release':
                 stable_version(version)

@@ -137,9 +137,11 @@ jobs:
                 raise ValueError('Refusing to replace a newer or unrelated source revision')
 
 
-        def validate_platforms(index, required):
+        def validate_platforms(index, required, single_platform=None):
             actual = {f"{m.get('platform', {}).get('os')}/{m.get('platform', {}).get('architecture')}"
                       for m in index.get('manifests', [])}
+            if 'manifests' not in index and single_platform:
+                actual = {single_platform}
             missing = set(required.split(',')) - actual
             if missing:
                 raise ValueError(f'Missing image platforms: {sorted(missing)}')
@@ -171,7 +173,8 @@ jobs:
             metadata = json.loads(command(['skopeo', 'inspect', '--override-os', 'linux', '--override-arch', 'amd64', reference]))
             return {'digest': metadata['Digest'], 'revision': metadata.get('Labels', {}).get('org.opencontainers.image.revision'),
                     'version': metadata.get('Labels', {}).get('org.opencontainers.image.version'),
-                    'fingerprint': metadata.get('Labels', {}).get('io.zekihan.build-inputs'), 'index': json.loads(raw)}
+                    'fingerprint': metadata.get('Labels', {}).get('io.zekihan.build-inputs'), 'index': json.loads(raw),
+                    'platform': f"{metadata.get('Os')}/{metadata.get('Architecture')}"}
 
 
         def github(endpoint):
