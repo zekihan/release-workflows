@@ -20,5 +20,5 @@ jobs:
         go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
         sudo apt-get update -qq
         sudo apt-get install -y --no-install-recommends skopeo
-        make lint test
+        REQUIRE_SKOPEO=1 make lint test
         RUN_REGISTRY_TESTS=1 python3 -m unittest discover -s tests -p test_registry.py -v

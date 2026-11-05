@@ -4,10 +4,21 @@ import tempfile
 import unittest
 import json
 import subprocess
-from test_registry import fixture_archive
+import os
+import shutil
+import importlib.util
+
+registry_spec = importlib.util.spec_from_file_location('test_registry', Path(__file__).with_name('test_registry.py'))
+registry = importlib.util.module_from_spec(registry_spec)
+registry_spec.loader.exec_module(registry)
+fixture_archive = registry.fixture_archive
 
 ROOT = Path(__file__).parents[1]
+SKOPEO = shutil.which('skopeo')
+if not SKOPEO and os.environ.get('REQUIRE_SKOPEO') == '1':
+    raise RuntimeError('REQUIRE_SKOPEO=1 but skopeo is not installed or not on PATH')
 
+@unittest.skipUnless(SKOPEO, 'skopeo is required for native archive merge tests')
 class MergeTests(unittest.TestCase):
     def test_native_archives_merge_deterministically_and_preserve_platforms(self):
         namespace = {'__name__': 'test'}
