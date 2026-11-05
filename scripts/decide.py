@@ -13,6 +13,8 @@ def decide():
         main = command(['git', 'rev-parse', 'origin/main']).decode().strip()
         if not ancestor(sha, main):
             raise ValueError('Release commit is outside main history')
+        tags = command(['git', 'tag', '--merged', sha]).decode().splitlines()
+        validate_version_history(version, tags)
         output({'build': 'true', 'version': version, 'fingerprint': sha})
         return
     if ref != 'refs/heads/main' or event not in ('schedule', 'workflow_dispatch'):

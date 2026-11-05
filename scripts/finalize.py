@@ -38,9 +38,7 @@ def finalize():
         promotions = []
         for name in image_names():
             current = inspect_image(f'docker://{name}:latest')
-            if current and not current['version']:
-                raise ValueError('Existing latest lacks version metadata; resolve it explicitly before promotion')
-            previous = current['version'].removeprefix('v') if current and current['version'] else None
+            previous = current_release_version(current)
             if previous == version:
                 immutable_decision(current['digest'], os.environ['IMAGE_DIGEST'])
             if latest_decision(previous, version):

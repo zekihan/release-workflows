@@ -84,6 +84,14 @@ jobs:
             return tuple(map(int, value.split('.')))
 
 
+        def validate_version_history(version, tags):
+            candidate = stable_version(version)
+            for tag in tags:
+                if re.fullmatch(r'v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)', tag):
+                    if stable_version(tag[1:]) > candidate:
+                        raise ValueError('Release version is older than a stable tag in its source history')
+
+
         def release_identity(version, revision=None):
             if revision is None:
                 stable_version(version)
@@ -204,6 +212,24 @@ jobs:
                     raise ValueError('Anonymous pull does not resolve to the published image')
 
 
+        def current_release_version(current):
+            if current is None:
+                return None
+            value = (current.get('version') or '').removeprefix('v')
+            try:
+                stable_version(value)
+                return value
+            except ValueError:
+                # Older metadata-action tags recorded "0" or "latest". Resolve their
+                # declared version from the exact labelled source, never a branch head.
+                revision = current.get('revision') or ''
+                if not re.fullmatch(r'[0-9a-f]{40}', revision):
+                    raise ValueError('Existing latest has no verifiable version/source metadata') from None
+                value = command(['git', 'show', f'{revision}:VERSION']).decode().strip()
+                stable_version(value)
+                return value
+
+
         def verify_archive(path, expected):
             if not re.fullmatch(r'[0-9a-f]{64}', expected):
                 raise ValueError('Missing or invalid expected artifact checksum')
@@ -227,6 +253,8 @@ jobs:
                 main = command(['git', 'rev-parse', 'origin/main']).decode().strip()
                 if not ancestor(sha, main):
                     raise ValueError('Release commit is outside main history')
+                tags = command(['git', 'tag', '--merged', sha]).decode().splitlines()
+                validate_version_history(version, tags)
                 output({'build': 'true', 'version': version, 'fingerprint': sha})
                 return
             if ref != 'refs/heads/main' or event not in ('schedule', 'workflow_dispatch'):

@@ -8,6 +8,14 @@ def stable_version(value):
     return tuple(map(int, value.split('.')))
 
 
+def validate_version_history(version, tags):
+    candidate = stable_version(version)
+    for tag in tags:
+        if re.fullmatch(r'v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)', tag):
+            if stable_version(tag[1:]) > candidate:
+                raise ValueError('Release version is older than a stable tag in its source history')
+
+
 def release_identity(version, revision=None):
     if revision is None:
         stable_version(version)

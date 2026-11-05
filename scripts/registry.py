@@ -68,6 +68,24 @@ def verify_access(reference, digest):
             raise ValueError('Anonymous pull does not resolve to the published image')
 
 
+def current_release_version(current):
+    if current is None:
+        return None
+    value = (current.get('version') or '').removeprefix('v')
+    try:
+        stable_version(value)
+        return value
+    except ValueError:
+        # Older metadata-action tags recorded "0" or "latest". Resolve their
+        # declared version from the exact labelled source, never a branch head.
+        revision = current.get('revision') or ''
+        if not re.fullmatch(r'[0-9a-f]{40}', revision):
+            raise ValueError('Existing latest has no verifiable version/source metadata') from None
+        value = command(['git', 'show', f'{revision}:VERSION']).decode().strip()
+        stable_version(value)
+        return value
+
+
 def verify_archive(path, expected):
     if not re.fullmatch(r'[0-9a-f]{64}', expected):
         raise ValueError('Missing or invalid expected artifact checksum')

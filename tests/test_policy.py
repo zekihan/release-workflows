@@ -65,3 +65,9 @@ class PolicyTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class HistoryTests(unittest.TestCase):
+    def test_source_history_rejects_decreasing_release_versions(self):
+        policy.validate_version_history('2.0.0', ['v1.9.0', 'v2.0.0', 'v3.0.0-rc1'])
+        with self.assertRaises(ValueError):
+            policy.validate_version_history('1.9.0', ['v2.0.0'])

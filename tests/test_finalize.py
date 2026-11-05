@@ -21,7 +21,7 @@ class FinalizeTests(unittest.TestCase):
         def copy(src, dst):
             writes.append((src, dst))
             state[dst.removeprefix('docker://')] = release
-        namespace.update(inspect_image=inspect, publish_copy=copy)
+        namespace.update(inspect_image=inspect, publish_copy=copy, command=lambda args: b'1.0.0')
         with tempfile.TemporaryDirectory() as directory:
             before = Path.cwd()
             os.chdir(directory)
@@ -59,3 +59,8 @@ class FinalizeTests(unittest.TestCase):
 
     def test_unknown_current_version_fails_closed(self):
         self.assertEqual(self.run_finalize({'ghcr.io/owner/app:latest': {'digest': 'old', 'version': None}}, error=True), [])
+
+    def test_legacy_channel_label_uses_version_from_its_exact_source(self):
+        state = {'ghcr.io/owner/app:latest': {'digest': 'legacy', 'version': '0', 'revision': 'a' * 40}}
+        writes = self.run_finalize(state)
+        self.assertEqual(len(writes), 2)
