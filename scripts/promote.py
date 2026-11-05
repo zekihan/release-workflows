@@ -49,6 +49,8 @@ def promote():
             raise ValueError('Release mirrors could not be verified')
         if mode == 'release' and published[0]['digest'] != candidate['digest']:
             raise ValueError('Release verification differs from build')
+        for name, release in zip(names, published):
+            verify_access(f'docker://{name}:{version}', release['digest'])
         for name, release in zip(names, published) if mode == 'declarative' else []:
             current = inspect_image(f'docker://{name}:latest')
             # Composite upstream versions are ordered by reviewed source history.
@@ -64,6 +66,7 @@ def promote():
             remote = inspect_image(f'docker://{name}:edge')
             if not remote or remote['digest'] != candidate['digest']:
                 raise ValueError('Development mirror verification failed')
+            verify_access(f'docker://{name}:edge', candidate['digest'])
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
         stream.write(f'Source: `{sha}`\n\nImage digest: `{candidate["digest"]}`\n')
     output({'digest': candidate['digest']})

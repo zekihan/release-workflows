@@ -48,3 +48,13 @@ immutable conflicts and stale promotion.
 
 Publishing requires explicit operational authorization. Creating or editing this
 local repository does not publish workflows, images, charts or releases.
+
+Image callers default to anonymous-pull verification after authenticated digest
+verification. Set `public-image: false` for private images; this does not disable
+authenticated verification. Make new public image/chart packages accessible before
+accepting the first publication. The shared repo itself must also be public.
+
+Use `native-arm: true` for native amd64/arm64 compilation (Proton Mail Bridge).
+The publisher verifies both build artifacts and combines their OCI indexes with
+embedded code. No emulated tests run. `smoke-command` loads the host architecture
+from the prepared archive before upload, for the Postgres acceptance suite.

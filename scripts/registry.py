@@ -61,6 +61,13 @@ def publish_copy(source, destination):
     command(['skopeo', 'copy', '--all', '--preserve-digests', source, destination])
 
 
+def verify_access(reference, digest):
+    if os.environ.get('PUBLIC_IMAGE') == 'true':
+        remote = command(['skopeo', 'inspect', '--no-creds', '--format', '{{.Digest}}', reference]).decode().strip()
+        if remote != digest:
+            raise ValueError('Anonymous pull does not resolve to the published image')
+
+
 def verify_archive(path, expected):
     if not re.fullmatch(r'[0-9a-f]{64}', expected):
         raise ValueError('Missing or invalid expected artifact checksum')

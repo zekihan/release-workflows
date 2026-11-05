@@ -304,6 +304,13 @@ jobs:
             command(['skopeo', 'copy', '--all', '--preserve-digests', source, destination])
 
 
+        def verify_access(reference, digest):
+            if os.environ.get('PUBLIC_IMAGE') == 'true':
+                remote = command(['skopeo', 'inspect', '--no-creds', '--format', '{{.Digest}}', reference]).decode().strip()
+                if remote != digest:
+                    raise ValueError('Anonymous pull does not resolve to the published image')
+
+
         def verify_archive(path, expected):
             if not re.fullmatch(r'[0-9a-f]{64}', expected):
                 raise ValueError('Missing or invalid expected artifact checksum')
@@ -340,6 +347,10 @@ jobs:
                 Path('verified-chart').mkdir(exist_ok=True)
                 command(['helm', 'pull', f'oci://{destination}/{chart}', '--version', version, '--destination', 'verified-chart'])
                 verify_archive(f'verified-chart/{name}', manifest[name])
+                authenticated = command(['skopeo', 'inspect', '--raw', f'docker://{destination}/{chart}:{version}'])
+                anonymous = command(['skopeo', 'inspect', '--no-creds', '--raw', f'docker://{destination}/{chart}:{version}'])
+                if authenticated != anonymous:
+                    raise ValueError('Anonymous chart access did not match authenticated verification')
             if os.environ['IMAGE']:
                 for name in image_names():
                     release = inspect_image(f'docker://{name}:{version}')

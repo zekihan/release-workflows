@@ -39,6 +39,9 @@ name: Build and publish image
       smoke-command:
         type: string
         default: 'true'
+      public-image:
+        type: boolean
+        default: true
     secrets:
       DOCKER_USERNAME:
         required: true
@@ -274,6 +277,13 @@ jobs:
             command(['skopeo', 'copy', '--all', '--preserve-digests', source, destination])
 
 
+        def verify_access(reference, digest):
+            if os.environ.get('PUBLIC_IMAGE') == 'true':
+                remote = command(['skopeo', 'inspect', '--no-creds', '--format', '{{.Digest}}', reference]).decode().strip()
+                if remote != digest:
+                    raise ValueError('Anonymous pull does not resolve to the published image')
+
+
         def verify_archive(path, expected):
             if not re.fullmatch(r'[0-9a-f]{64}', expected):
                 raise ValueError('Missing or invalid expected artifact checksum')
@@ -376,6 +386,7 @@ jobs:
         MODE: ${{ inputs.mode }}
         VERSION: ${{ inputs.version }}
         FINGERPRINT: ${{ inputs.fingerprint }}
+        PUBLIC_IMAGE: ${{ inputs.public-image }}
         PLATFORMS: ${{ inputs.platforms }}
         ARCHIVE_SHA256: ${{ inputs.native-arm && steps.merge.outputs.sha256 || needs.build.outputs.sha256 }}
       run: |
@@ -503,6 +514,13 @@ jobs:
             command(['skopeo', 'copy', '--all', '--preserve-digests', source, destination])
 
 
+        def verify_access(reference, digest):
+            if os.environ.get('PUBLIC_IMAGE') == 'true':
+                remote = command(['skopeo', 'inspect', '--no-creds', '--format', '{{.Digest}}', reference]).decode().strip()
+                if remote != digest:
+                    raise ValueError('Anonymous pull does not resolve to the published image')
+
+
         def verify_archive(path, expected):
             if not re.fullmatch(r'[0-9a-f]{64}', expected):
                 raise ValueError('Missing or invalid expected artifact checksum')
@@ -562,6 +580,8 @@ jobs:
                     raise ValueError('Release mirrors could not be verified')
                 if mode == 'release' and published[0]['digest'] != candidate['digest']:
                     raise ValueError('Release verification differs from build')
+                for name, release in zip(names, published):
+                    verify_access(f'docker://{name}:{version}', release['digest'])
                 for name, release in zip(names, published) if mode == 'declarative' else []:
                     current = inspect_image(f'docker://{name}:latest')
                     # Composite upstream versions are ordered by reviewed source history.
@@ -577,6 +597,7 @@ jobs:
                     remote = inspect_image(f'docker://{name}:edge')
                     if not remote or remote['digest'] != candidate['digest']:
                         raise ValueError('Development mirror verification failed')
+                    verify_access(f'docker://{name}:edge', candidate['digest'])
             with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
                 stream.write(f'Source: `{sha}`\n\nImage digest: `{candidate["digest"]}`\n')
             output({'digest': candidate['digest']})

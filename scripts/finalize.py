@@ -26,6 +26,10 @@ def finalize():
         Path('verified-chart').mkdir(exist_ok=True)
         command(['helm', 'pull', f'oci://{destination}/{chart}', '--version', version, '--destination', 'verified-chart'])
         verify_archive(f'verified-chart/{name}', manifest[name])
+        authenticated = command(['skopeo', 'inspect', '--raw', f'docker://{destination}/{chart}:{version}'])
+        anonymous = command(['skopeo', 'inspect', '--no-creds', '--raw', f'docker://{destination}/{chart}:{version}'])
+        if authenticated != anonymous:
+            raise ValueError('Anonymous chart access did not match authenticated verification')
     if os.environ['IMAGE']:
         for name in image_names():
             release = inspect_image(f'docker://{name}:{version}')

@@ -85,7 +85,7 @@ image = {
         'context': inp('.'), 'platforms': inp('linux/amd64,linux/arm64'),
         'prepare-command': inp('true'), 'node-version': inp(), 'goreleaser-version': inp('v2.20.0'),
         'qemu': inp(False, 'boolean'), 'native-arm': inp(False, 'boolean'),
-        'smoke-command': inp('true')}, 'secrets': secrets,
+        'smoke-command': inp('true'), 'public-image': inp(True, 'boolean')}, 'secrets': secrets,
         'outputs': {'digest': {'value': '${{ jobs.publish.outputs.digest }}'}}}},
     'permissions': {'contents': 'read'},
     'jobs': {
@@ -110,6 +110,7 @@ image = {
                     'steps': [checkout(), action('download', **{'with': {'artifact-ids': '${{ needs.build.outputs.artifact }}', 'path': 'artifact', 'merge-multiple': True}}),
                               *registry_setup(), {'id': 'publish', 'env': common_env | {
                                   'VERSION': '${{ inputs.version }}', 'FINGERPRINT': '${{ inputs.fingerprint }}',
+                                  'PUBLIC_IMAGE': '${{ inputs.public-image }}',
                                   'PLATFORMS': '${{ inputs.platforms }}', 'ARCHIVE_SHA256': '${{ needs.build.outputs.sha256 }}'},
                                                   'run': embedded('promote.py')}]}
     }
