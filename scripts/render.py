@@ -129,7 +129,7 @@ steps.remove(smoke)
 steps.insert(-2, smoke)
 arm = copy.deepcopy(image['jobs']['build'])
 arm['if'] = '${{ inputs.native-arm }}'
-arm['runs-on'] = 'ubuntu-24.04-arm'
+arm['runs-on'] = 'ubuntu-26.04-arm'
 for step in arm['steps']:
     if step.get('uses') == PINS['build']:
         step['with']['platforms'] = 'linux/arm64'
