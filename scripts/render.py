@@ -1,23 +1,37 @@
 """Embed reviewed helpers in workflows so caller SHA pins cover executable code."""
 from pathlib import Path
 import copy
+import re
 import sys
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = {
-    'checkout': 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
-    'go': 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e',
-    'node': 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1',
-    'goreleaser': 'goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de',
-    'qemu': 'docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1',
-    'buildx': 'docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069',
-    'build': 'docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc',
-    'login': 'docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6',
-    'upload': 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9',
-    'download': 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333',
-    'helm': 'azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310',
+    'checkout': 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1',
+    'go': 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0',
+    'node': 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0',
+    'goreleaser': 'goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0',
+    'qemu': 'docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0',
+    'buildx': 'docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1',
+    'build': 'docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0',
+    'login': 'docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0',
+    'upload': 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2',
+    'download': 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2',
+    'helm': 'azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1',
 }
+
+
+HELM_VERSION = 'v4.3.1'  # renovate: datasource=github-releases depName=helm packageName=helm/helm
+ARM_RUNNER_VERSION = '26.04-arm'  # renovate: datasource=github-runners depName=ubuntu
+
+
+def pin_ref(name):
+    return PINS[name].split(' # ')[0]
+
+
+def annotate(text):
+    comments = {pin_ref(name): PINS[name].split(' # ')[1] for name in PINS}
+    return re.sub(r'(uses: )(\S+@[0-9a-f]{40})$', lambda m: f'{m.group(1)}{m.group(2)} # {comments[m.group(2)]}', text, flags=re.M)
 
 
 def literal(dumper, value):
@@ -37,7 +51,7 @@ def embedded(script):
 
 
 def action(pin, **kwargs):
-    return {'uses': PINS[pin], **kwargs}
+    return {'uses': pin_ref(pin), **kwargs}
 
 
 def checkout():
@@ -129,17 +143,17 @@ steps.remove(smoke)
 steps.insert(-2, smoke)
 arm = copy.deepcopy(image['jobs']['build'])
 arm['if'] = '${{ inputs.native-arm }}'
-arm['runs-on'] = 'ubuntu-26.04-arm'
+arm['runs-on'] = 'ubuntu-' + ARM_RUNNER_VERSION
 for step in arm['steps']:
-    if step.get('uses') == PINS['build']:
+    if step.get('uses') == pin_ref('build'):
         step['with']['platforms'] = 'linux/arm64'
         step['with']['cache-from'] += '-arm64'
         step['with']['cache-to'] += '-arm64'
-    if step.get('uses') == PINS['upload']:
+    if step.get('uses') == pin_ref('upload'):
         step['with']['name'] += '-arm64'
 image['jobs']['build-arm'] = arm
 for step in image['jobs']['build']['steps']:
-    if step.get('uses') == PINS['build']:
+    if step.get('uses') == pin_ref('build'):
         step['with']['platforms'] = "${{ inputs.native-arm && 'linux/amd64' || inputs.platforms }}"
 publish = image['jobs']['publish']
 publish['needs'] = ['build', 'build-arm']
@@ -169,7 +183,7 @@ release = {
                           'MODE': 'release', 'RELEASE_VERSION': '${{ inputs.version }}'}, 'run': 'bash -euo pipefail -c "$PREPARE"'},
                       {'if': '${{ inputs.binaries }}', 'run': 'goreleaser release --clean --skip=publish,announce'},
                       {'env': {'VERIFY': '${{ inputs.verify-command }}'}, 'run': 'bash -euo pipefail -c "$VERIFY"'},
-                      action('helm', **{'if': "${{ inputs.chart-path != '' }}", 'with': {'version': 'v4.3.1'}}),
+                      action('helm', **{'if': "${{ inputs.chart-path != '' }}", 'with': {'version': HELM_VERSION}}),
                       {'if': "${{ inputs.chart-path != '' }}", 'env': {'CHART_PATH': '${{ inputs.chart-path }}', 'VERSION': '${{ inputs.version }}'},
                        'run': 'helm lint "$CHART_PATH"\nhelm package "$CHART_PATH" --version "$VERSION" --app-version "$VERSION" --destination dist\n'},
                       {'id': 'manifest', 'env': {'NOTES_FILE': '${{ inputs.notes-file }}'}, 'run': '''python3 - <<'PY'
@@ -204,7 +218,7 @@ PY
                         action('download', **{'with': {'artifact-ids': '${{ needs.build.outputs.artifact }}', 'path': 'artifact', 'merge-multiple': True}}),
                         {'run': 'if ! command -v skopeo >/dev/null; then\n  sudo apt-get update -qq\n  sudo apt-get install -y --no-install-recommends skopeo\nfi\n'},
                         *[step | {'if': "${{ inputs.image != '' }}"} for step in registry_setup()[1:]],
-                        action('helm', **{'if': "${{ inputs.chart-path != '' }}", 'with': {'version': 'v4.3.1'}}),
+                        action('helm', **{'if': "${{ inputs.chart-path != '' }}", 'with': {'version': HELM_VERSION}}),
                         {'if': "${{ inputs.chart-path != '' }}", 'env': {'TOKEN': '${{ github.token }}'},
                          'run': 'printf "%s" "$TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin'},
                         {'env': {'GH_TOKEN': '${{ github.token }}', 'GH_REPO': '${{ github.repository }}',
@@ -218,7 +232,7 @@ PY
 # Verify the build job's checksum before introducing registry credentials.
 for workflow in [image, release]:
     steps = workflow['jobs']['publish']['steps']
-    first_login = next(i for i, step in enumerate(steps) if step.get('uses') == PINS['login'])
+    first_login = next(i for i, step in enumerate(steps) if step.get('uses') == pin_ref('login'))
     checksum = '${{ inputs.native-arm && steps.merge.outputs.sha256 || needs.build.outputs.sha256 }}' if workflow is image else '${{ needs.build.outputs.sha256 }}'
     path = 'artifact/image.tar' if workflow is image else 'artifact/manifest.json'
     steps.insert(first_login, {'name': 'Verify prepared artifact before registry login',
@@ -229,7 +243,7 @@ def main():
     workflows = {'decide.yaml': decide, 'image.yaml': image, 'release.yaml': release}
     failed = False
     for name, document in workflows.items():
-        rendered = '# Generated by scripts/render.py; edit scripts and regenerate.\n' + yaml.safe_dump(document, sort_keys=False, width=120)
+        rendered = '# Generated by scripts/render.py; edit scripts and regenerate.\n' + annotate(yaml.safe_dump(document, sort_keys=False, width=120))
         path = ROOT / '.github/workflows' / name
         if '--check' in sys.argv:
             if not path.exists() or path.read_text() != rendered:
