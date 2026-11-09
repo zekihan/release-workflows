@@ -679,7 +679,7 @@ jobs:
         promote()
 
         PUBLISH_POLICY
-    if: ${{ always() && needs.build.result == 'success' && (needs.build-arm.result == 'skipped' || needs.build-arm.result
+    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.build-arm.result == 'skipped' || needs.build-arm.result
       == 'success') }}
   build-arm:
     runs-on: ubuntu-26.04-arm
