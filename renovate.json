@@ -2,5 +2,32 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>zekihan/renovate-config"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Action pins in scripts/render.py",
+      "managerFilePatterns": ["/^scripts/render\\.py$/"],
+      "matchStrings": [
+        "'(?<depName>[\\w.-]+/[\\w.-]+)@(?<currentDigest>[0-9a-f]{40}) # (?<currentValue>v\\S+?)'"
+      ],
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "description": "Annotated constants in scripts/render.py",
+      "managerFilePatterns": ["/^scripts/render\\.py$/"],
+      "matchStrings": [
+        "= '(?<currentValue>[^']+)'  # renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: packageName=(?<packageName>\\S+))?"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Update render.py and the generated workflows in one branch",
+      "matchManagers": ["custom.regex", "github-actions"],
+      "matchFileNames": ["scripts/render.py", ".github/workflows/**"],
+      "groupName": "{{{depName}}}"
+    }
   ]
 }
