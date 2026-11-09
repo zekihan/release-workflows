@@ -54,21 +54,21 @@ jobs:
       artifact: ${{ steps.artifact.outputs.artifact-id }}
       sha256: ${{ steps.manifest.outputs.sha256 }}
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         ref: ${{ github.sha }}
         fetch-depth: 0
         persist-credentials: false
-    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       if: ${{ hashFiles('go.mod') != '' }}
       with:
         go-version-file: go.mod
         cache: false
-    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       if: ${{ inputs.node-version != '' }}
       with:
         node-version: ${{ inputs.node-version }}
-    - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de
+    - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
       if: ${{ hashFiles('.goreleaser.yaml') != '' }}
       with:
         version: ${{ inputs.goreleaser-version }}
@@ -84,7 +84,7 @@ jobs:
     - env:
         VERIFY: ${{ inputs.verify-command }}
       run: bash -euo pipefail -c "$VERIFY"
-    - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
+    - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
       if: ${{ inputs.chart-path != '' }}
       with:
         version: v4.3.1
@@ -122,7 +122,7 @@ jobs:
         with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
             output.write('sha256=' + hashlib.sha256(data).hexdigest() + '\n')
         PY
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       id: artifact
       with:
         name: release-assets
@@ -137,12 +137,12 @@ jobs:
       contents: write
       packages: write
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         ref: ${{ github.sha }}
         fetch-depth: 0
         persist-credentials: false
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
       with:
         artifact-ids: ${{ needs.build.outputs.artifact }}
         path: artifact
@@ -159,18 +159,18 @@ jobs:
       run: |
         [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]
         printf "%s  %s\n" "$EXPECTED_SHA256" "$ARTIFACT_PATH" | sha256sum --strict --check -
-    - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
+    - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ github.token }}
       if: ${{ inputs.image != '' }}
-    - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
+    - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
       if: ${{ inputs.image != '' }}
-    - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
+    - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
       if: ${{ inputs.chart-path != '' }}
       with:
         version: v4.3.1
