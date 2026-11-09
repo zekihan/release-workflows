@@ -143,7 +143,7 @@ for step in image['jobs']['build']['steps']:
         step['with']['platforms'] = "${{ inputs.native-arm && 'linux/amd64' || inputs.platforms }}"
 publish = image['jobs']['publish']
 publish['needs'] = ['build', 'build-arm']
-publish['if'] = "${{ always() && needs.build.result == 'success' && (needs.build-arm.result == 'skipped' || needs.build-arm.result == 'success') }}"
+publish['if'] = "${{ !cancelled() && needs.build.result == 'success' && (needs.build-arm.result == 'skipped' || needs.build-arm.result == 'success') }}"
 publish['steps'][2:2] = [
     action('download', **{'if': '${{ inputs.native-arm }}', 'with': {
         'artifact-ids': '${{ needs.build-arm.outputs.artifact }}', 'path': 'arm-artifact', 'merge-multiple': True}}),
