@@ -84,7 +84,7 @@ jobs:
     - env:
         VERIFY: ${{ inputs.verify-command }}
       run: bash -euo pipefail -c "$VERIFY"
-    - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+    - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
       if: ${{ inputs.chart-path != '' }}
       with:
         version: v4.3.1
@@ -170,7 +170,7 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
       if: ${{ inputs.image != '' }}
-    - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+    - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
       if: ${{ inputs.chart-path != '' }}
       with:
         version: v4.3.1
