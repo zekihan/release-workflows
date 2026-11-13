@@ -17,7 +17,7 @@ PINS = {
     'login': 'docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0',
     'upload': 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2',
     'download': 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2',
-    'helm': 'azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1',
+    'helm': 'azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0',
 }
 
 
