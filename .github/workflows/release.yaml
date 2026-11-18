@@ -3,6 +3,9 @@ name: Publish stable release
 'on':
   workflow_call:
     inputs:
+      runs-on:
+        type: string
+        default: ubuntu-latest
       version:
         type: string
         default: ''
@@ -48,7 +51,7 @@ permissions:
   contents: read
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 45
     outputs:
       artifact: ${{ steps.artifact.outputs.artifact-id }}
@@ -131,7 +134,7 @@ jobs:
         retention-days: 7
   publish:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 30
     permissions:
       contents: write

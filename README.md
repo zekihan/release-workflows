@@ -39,6 +39,21 @@ embedded in generated YAML, so that pin covers the executable policy rather than
 fetching scripts from a branch. The shared repository must be public for public
 callers. No secret values belong here.
 
+All three reusable workflows accept a string `runs-on` input that defaults to
+`ubuntu-latest`. Pass a self-hosted Linux runner label to run the jobs there.
+Provide Git, Bash, Python 3 (standard library only), and the GitHub CLI on the
+runner. Image jobs need a Docker daemon accessible to the runner user and set
+up Buildx with an action. Registry jobs install skopeo with sudo and apt when
+it is missing. Image smoke checks install skopeo with sudo and apt when enabled.
+Chart jobs install Helm with a setup action.
+
+On a self-hosted x64 runner, build arm64 images by cross-compiling when the
+Dockerfile can package the binaries without executing target-platform code.
+Set `qemu: true` when the build needs to execute arm64 code.
+`docker/setup-qemu-action` requires a Docker daemon the runner user can access.
+Reserve `native-arm: true` for builds that should use the pinned GitHub-hosted
+arm64 runner.
+
 ## Development
 
 Install `requirements-dev.txt` into a virtual environment and install actionlint.

@@ -80,12 +80,12 @@ common_env = {'GH_TOKEN': '${{ github.token }}', 'IMAGE': '${{ inputs.image }}',
 
 decide = {
     'name': 'Decide publication',
-    'on': {'workflow_call': {'inputs': {'image': inp(), 'mode': inp('edge'), 'version-file': inp('VERSION'),
+    'on': {'workflow_call': {'inputs': {'runs-on': inp('ubuntu-latest'), 'image': inp(), 'mode': inp('edge'), 'version-file': inp('VERSION'),
                                       'input-paths': inp('[]'), 'force': inp(False, 'boolean')},
                              'secrets': {key: {'required': False} for key in secrets},
                              'outputs': {name: {'value': '${{ jobs.decide.outputs.' + name + ' }}'} for name in ['build', 'version', 'fingerprint']}}},
     'permissions': {'contents': 'read', 'actions': 'read', 'packages': 'read'},
-    'jobs': {'decide': {'runs-on': 'ubuntu-latest', 'timeout-minutes': 10,
+    'jobs': {'decide': {'runs-on': '${{ inputs.runs-on }}', 'timeout-minutes': 10,
                         'outputs': {name: '${{ steps.decide.outputs.' + name + ' }}' for name in ['build', 'version', 'fingerprint']},
                         'steps': [checkout(), *[step | {'if': "${{ inputs.image != '' }}"} for step in registry_setup()], {'id': 'decide', 'env': common_env | {
                             'VERSION_FILE': '${{ inputs.version-file }}', 'INPUT_PATHS': '${{ inputs.input-paths }}',
@@ -95,6 +95,7 @@ decide = {
 image = {
     'name': 'Build and publish image',
     'on': {'workflow_call': {'inputs': {
+        'runs-on': inp('ubuntu-latest'),
         'image': inp(), 'mode': inp('edge'), 'version': inp(), 'fingerprint': inp(),
         'context': inp('.'), 'platforms': inp('linux/amd64,linux/arm64'),
         'prepare-command': inp('true'), 'node-version': inp(), 'goreleaser-version': inp('v2.20.0'),
@@ -103,7 +104,7 @@ image = {
         'outputs': {'digest': {'value': '${{ jobs.publish.outputs.digest }}'}}}},
     'permissions': {'contents': 'read'},
     'jobs': {
-        'build': {'runs-on': 'ubuntu-latest', 'timeout-minutes': 60,
+        'build': {'runs-on': '${{ inputs.runs-on }}', 'timeout-minutes': 60,
                   'outputs': {'artifact': '${{ steps.artifact.outputs.artifact-id }}', 'sha256': '${{ steps.checksum.outputs.sha256 }}'},
                   'steps': [checkout(), *tools_setup(),
                       {'name': 'Prepare image inputs without publication credentials', 'env': {
@@ -119,7 +120,7 @@ image = {
                       {'id': 'checksum', 'run': 'echo "sha256=$(sha256sum "$RUNNER_TEMP/image.tar" | cut -d " " -f 1)" >> "$GITHUB_OUTPUT"'},
                       action('upload', **{'id': 'artifact', 'with': {'name': 'image-${{ inputs.image }}', 'path': '${{ runner.temp }}/image.tar',
                                                                   'if-no-files-found': 'error', 'retention-days': 7}})]},
-        'publish': {'needs': 'build', 'runs-on': 'ubuntu-latest', 'timeout-minutes': 30,
+        'publish': {'needs': 'build', 'runs-on': '${{ inputs.runs-on }}', 'timeout-minutes': 30,
                     'permissions': {'contents': 'read', 'packages': 'write'}, 'outputs': {'digest': '${{ steps.publish.outputs.digest }}'},
                     'steps': [checkout(), action('download', **{'with': {'artifact-ids': '${{ needs.build.outputs.artifact }}', 'path': 'artifact', 'merge-multiple': True}}),
                               *registry_setup(), {'id': 'publish', 'env': common_env | {
@@ -169,6 +170,7 @@ publish['steps'][-1]['env']['ARCHIVE_SHA256'] = '${{ inputs.native-arm && steps.
 release = {
     'name': 'Publish stable release',
     'on': {'workflow_call': {'inputs': {
+        'runs-on': inp('ubuntu-latest'),
         'version': inp(), 'image': inp(), 'image-digest': inp(), 'chart-path': inp(), 'chart-name': inp(),
         'binaries': inp(True, 'boolean'), 'github-release': inp(True, 'boolean'),
         'prepare-command': inp('true'), 'verify-command': inp('true'), 'notes-file': inp(),
@@ -176,7 +178,7 @@ release = {
         'secrets': {key: {'required': False} for key in secrets}}},
     'permissions': {'contents': 'read'},
     'jobs': {
-        'build': {'runs-on': 'ubuntu-latest', 'timeout-minutes': 45,
+        'build': {'runs-on': '${{ inputs.runs-on }}', 'timeout-minutes': 45,
                   'outputs': {'artifact': '${{ steps.artifact.outputs.artifact-id }}', 'sha256': '${{ steps.manifest.outputs.sha256 }}'},
                   'steps': [checkout(), *tools_setup(),
                       {'name': 'Prepare release without publication credentials', 'env': {'PREPARE': '${{ inputs.prepare-command }}',
@@ -212,7 +214,7 @@ PY
 '''},
                       action('upload', **{'id': 'artifact', 'with': {'name': 'release-assets', 'path': 'release-assets/',
                           'if-no-files-found': 'error', 'retention-days': 7}})]},
-        'publish': {'needs': 'build', 'runs-on': 'ubuntu-latest', 'timeout-minutes': 30,
+        'publish': {'needs': 'build', 'runs-on': '${{ inputs.runs-on }}', 'timeout-minutes': 30,
                     'permissions': {'contents': 'write', 'packages': 'write'},
                     'steps': [checkout(),
                         action('download', **{'with': {'artifact-ids': '${{ needs.build.outputs.artifact }}', 'path': 'artifact', 'merge-multiple': True}}),
