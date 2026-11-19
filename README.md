@@ -59,6 +59,7 @@ arm64 runner.
 Install `requirements-dev.txt` into a virtual environment and install actionlint.
 Install skopeo to run the native archive merge tests; those tests are skipped
 locally when skopeo is unavailable, but CI requires it.
+Install Helm to run the chart lint regression test.
 Run `make generate lint test` after changes. Generated YAML is checked for drift.
 The tests cover failure suppression, forced/manual recovery, missing mirrors,
 immutable conflicts and stale promotion.
