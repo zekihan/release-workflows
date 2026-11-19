@@ -101,6 +101,52 @@ data:
                 self.assertEqual(manifest[name], hashlib.sha256(name.encode()).hexdigest())
             self.assertEqual(output.read_text(), f'sha256={hashlib.sha256(manifest_data).hexdigest()}\n')
 
+    def test_manifest_includes_goreleaser_sbom_outputs(self):
+        step = next(step for step in self.steps if step.get('id') == 'manifest')
+        sboms = {'widget_2.0.0_linux_amd64.tar.gz.sbom.json': b'{"bomFormat":"CycloneDX"}',
+                 'widget-inventory.json': b'{"spdxVersion":"SPDX-2.3"}'}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dist = root / 'dist'
+            dist.mkdir()
+            for name, data in sboms.items():
+                (dist / name).write_bytes(data)
+            (dist / 'metadata.json').write_text('{"version":"2.0.0"}')
+            (dist / 'unlisted.sbom.json').write_text('{}')
+            artifacts = [{'name': name, 'path': f'dist/{name}', 'type': 'SBOM'} for name in sboms]
+            artifacts.append({'name': 'metadata.json', 'path': 'dist/metadata.json', 'type': 'Metadata'})
+            (dist / 'artifacts.json').write_text(json.dumps(artifacts))
+            output = root / 'output'
+            subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', step['run']], cwd=root, check=True,
+                           env={'PATH': os.environ['PATH'], 'GITHUB_OUTPUT': str(output), 'BINARIES': 'true'})
+            staged = root / 'release-assets'
+            manifest = json.loads((staged / 'manifest.json').read_text())
+            self.assertEqual(set(manifest), {*sboms, 'SHA256SUMS'})
+            checksums = (staged / 'SHA256SUMS').read_text().splitlines()
+            for name, data in sboms.items():
+                digest = hashlib.sha256(data).hexdigest()
+                self.assertEqual((staged / name).read_bytes(), data)
+                self.assertEqual(manifest[name], digest)
+                self.assertIn(f'{digest}  {name}', checksums)
+        self.assertEqual(step.get('env', {}).get('BINARIES'), '${{ inputs.binaries }}')
+
+    def test_manifest_rejects_sbom_output_outside_dist(self):
+        step = next(step for step in self.steps if step.get('id') == 'manifest')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dist = root / 'dist'
+            dist.mkdir()
+            (root / 'inventory.json').write_text('{}')
+            (dist / 'inventory.json').symlink_to('../inventory.json')
+            (dist / 'artifacts.json').write_text(
+                '[{"name":"inventory.json","path":"dist/inventory.json","type":"SBOM"}]')
+            env = {'PATH': os.environ['PATH'], 'GITHUB_OUTPUT': str(root / 'output'), 'BINARIES': 'true'}
+            result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', step['run']], cwd=root, env=env,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn('SBOM is outside dist', result.stdout)
+            self.assertFalse((root / 'release-assets/inventory.json').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

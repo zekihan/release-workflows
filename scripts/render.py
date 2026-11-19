@@ -190,16 +190,34 @@ release = {
                       {'if': "${{ inputs.chart-path != '' }}", 'env': {'CHART_PATH': '${{ inputs.chart-path }}',
                           'CHART_NAME': '${{ inputs.chart-name }}', 'VERSION': '${{ inputs.version }}'},
                        'run': 'helm package "$CHART_PATH" --version "$VERSION" --app-version "$VERSION" --destination dist\nhelm lint "dist/$CHART_NAME-$VERSION.tgz"\n'},
-                      {'id': 'manifest', 'env': {'NOTES_FILE': '${{ inputs.notes-file }}'}, 'run': '''python3 - <<'PY'
+                      {'id': 'manifest', 'env': {'NOTES_FILE': '${{ inputs.notes-file }}',
+                          'BINARIES': '${{ inputs.binaries }}'}, 'run': '''python3 - <<'PY'
 import hashlib, json, os, pathlib, shutil
 dest = pathlib.Path('release-assets')
 dest.mkdir(exist_ok=True)
+dist = pathlib.Path('dist')
+patterns = ('*.tar', '*.gz', '*.tgz', '*.xz', '*.txz', '*.tar.zst', '*.tzst', '*.zip', 'checksums.txt', 'CHANGELOG.md')
+paths = {path.name: path for pattern in patterns for path in dist.glob(pattern)}
+artifact_index = dist / 'artifacts.json'
+if os.environ.get('BINARIES') == 'true' and artifact_index.is_file():
+    dist_root = dist.resolve()
+    for artifact in json.loads(artifact_index.read_text()):
+        if artifact['type'] != 'SBOM':
+            continue
+        path = pathlib.Path(artifact['path'])
+        resolved = path.resolve()
+        if not resolved.is_relative_to(dist_root):
+            raise ValueError(f'SBOM is outside dist: {path}')
+        if path.name in ('manifest.json', 'SHA256SUMS', 'CHANGELOG.md', 'checksums.txt'):
+            raise ValueError(f'Reserved release asset name: {path.name}')
+        if path.name in paths and paths[path.name].resolve() != resolved:
+            raise ValueError(f'Duplicate release asset name: {path.name}')
+        paths[path.name] = path
 manifest = {}
-for pattern in ('*.tar', '*.gz', '*.tgz', '*.xz', '*.txz', '*.tar.zst', '*.tzst', '*.zip', 'checksums.txt', 'CHANGELOG.md'):
-    for path in pathlib.Path('dist').glob(pattern):
-        shutil.copyfile(path, dest / path.name)
-        with path.open('rb') as stream:
-            manifest[path.name] = hashlib.file_digest(stream, 'sha256').hexdigest()
+for name, path in paths.items():
+    shutil.copyfile(path, dest / name)
+    with path.open('rb') as stream:
+        manifest[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
 notes = os.environ.get('NOTES_FILE')
 if notes:
     shutil.copyfile(notes, dest / 'CHANGELOG.md')
