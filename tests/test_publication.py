@@ -17,6 +17,11 @@ class PublicationTests(unittest.TestCase):
         writes = self.run_publish(mode='release')
         self.assertEqual({destination.rsplit(':', 1)[1] for _, destination in writes}, {'1.0.0'})
 
+    def test_edge_build_version_does_not_publish_a_release_tag(self):
+        writes = self.run_publish(mode='edge', version='1.0.0')
+        self.assertCountEqual([destination for _, destination in writes],
+                              ['docker://ghcr.io/owner/app:edge', 'docker://docker.io/owner/app:edge'])
+
     def test_declarative_dependency_refresh_preserves_release(self):
         existing = {f'{registry}/owner/app:1.0.0': self.meta('released') for registry in ['ghcr.io', 'docker.io']}
         writes = self.run_publish(mode='declarative', existing=existing)
@@ -48,7 +53,7 @@ class PublicationTests(unittest.TestCase):
         return {'digest': digest, 'revision': 'a' * 40, 'version': '1.0.0', 'fingerprint': 'f',
                 'index': {'manifests': [{'platform': {'os': 'linux', 'architecture': arch}} for arch in ['amd64', 'arm64']]}}
 
-    def run_publish(self, *, mode, existing=None, error=False, platforms='linux/amd64,linux/arm64'):
+    def run_publish(self, *, mode, existing=None, error=False, platforms='linux/amd64,linux/arm64', version=None):
         namespace = {}
         for script in ['policy.py', 'registry.py']:
             exec(compile((ROOT / 'scripts' / script).read_text(), script, 'exec'), namespace)
@@ -77,7 +82,9 @@ class PublicationTests(unittest.TestCase):
             try:
                 Path('artifact').mkdir()
                 Path('artifact/image.tar').write_bytes(b'fixture')
-                env = {'VERSION': '' if mode == 'edge' else '1.0.0', 'IMAGE': 'app', 'MODE': mode,
+                if version is None:
+                    version = '' if mode == 'edge' else '1.0.0'
+                env = {'VERSION': version, 'IMAGE': 'app', 'MODE': mode,
                        'GITHUB_SHA': 'a' * 40, 'FINGERPRINT': 'f', 'PLATFORMS': platforms, 'PUBLIC_IMAGE': 'false',
                        'GITHUB_REF': 'refs/tags/v1.0.0' if mode == 'release' else 'refs/heads/main',
                        'GITHUB_REPOSITORY_OWNER': 'owner', 'DOCKER_USERNAME': 'owner',

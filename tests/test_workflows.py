@@ -74,6 +74,27 @@ class WorkflowConditionTests(unittest.TestCase):
                     self.assertRegex(match.group(2), r'^ # v\d+\.\d+\.\d+$', f'{path.name}:{number} uses lacks version comment')
 
 
+class ImageBuildTests(unittest.TestCase):
+    def test_smoke_copy_uses_native_platform_when_goarch_is_set(self):
+        jobs = yaml.safe_load((WORKFLOWS / 'image.yaml').read_text())['jobs']
+        stubs = '''sudo() { :; }
+go() { printf '%s\\n' "$GOARCH"; }
+skopeo() { printf '%s\\n' "$@" > "$COPY_ARGS"; }
+'''
+        for job in ('build', 'build-arm'):
+            with self.subTest(job=job), tempfile.TemporaryDirectory() as directory:
+                step = next(step for step in jobs[job]['steps'] if step.get('name', '').startswith('Smoke-test'))
+                copy_args = Path(directory) / 'copy-args'
+                env = {'PATH': os.environ['PATH'], 'GOARCH': 's390x', 'RUNNER_TEMP': directory,
+                       'COPY_ARGS': str(copy_args), 'SMOKE': 'test -s "$COPY_ARGS"'}
+                result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', stubs + step['run']],
+                                        cwd=directory, env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(copy_args.read_text().splitlines(),
+                                 ['copy', f'oci-archive:{directory}/image.tar',
+                                  'docker-daemon:local/publishing-smoke:latest'])
+
+
 class ReleaseBuildTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

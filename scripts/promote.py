@@ -9,7 +9,7 @@ def promote():
         raise ValueError('Image archive is empty')
     sha = os.environ['GITHUB_SHA']
     mode = os.environ['MODE']
-    version = os.environ['VERSION']
+    version = '' if mode == 'edge' else os.environ['VERSION']
     fingerprint = os.environ['FINGERPRINT']
     if candidate['revision'] != sha or candidate['fingerprint'] != fingerprint:
         raise ValueError('Archive source identity does not match the requested publication')

@@ -143,7 +143,7 @@ image['jobs']['build']['steps'][-3:-3] = [
     {'name': 'Smoke-test the native image from the prepared archive',
      'if': "${{ inputs.smoke-command != 'true' }}",
      'env': {'SMOKE': '${{ inputs.smoke-command }}'},
-     'run': 'sudo apt-get update -qq\nsudo apt-get install -y --no-install-recommends skopeo\nskopeo copy --override-os linux --override-arch "$(go env GOARCH)" oci-archive:"$RUNNER_TEMP/image.tar" docker-daemon:local/publishing-smoke:latest\nbash -euo pipefail -c "$SMOKE"\n'}]
+     'run': 'sudo apt-get update -qq\nsudo apt-get install -y --no-install-recommends skopeo\nskopeo copy oci-archive:"$RUNNER_TEMP/image.tar" docker-daemon:local/publishing-smoke:latest\nbash -euo pipefail -c "$SMOKE"\n'}]
 # The extra smoke step belongs after the image build, before checksum/upload.
 steps = image['jobs']['build']['steps']
 smoke = next(s for s in steps if s.get('name', '').startswith('Smoke-test'))
