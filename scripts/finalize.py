@@ -10,11 +10,11 @@ def finalize():
         if not re.fullmatch(r'[A-Za-z0-9_.+-]+', name) or name in ('.', '..', 'manifest.json'):
             raise ValueError('Unsafe release asset filename')
         verify_archive(f'artifact/{name}', checksum)
-    charts = [name for name in manifest if name.endswith('.tgz')]
-    for name in charts:
+    if os.environ['CHART_PATH']:
         chart = os.environ['CHART_NAME']
-        if name != f'{chart}-{version}.tgz':
-            raise ValueError('Unexpected chart name/version')
+        name = f'{chart}-{version}.tgz'
+        if name not in manifest:
+            raise ValueError(f'Missing chart package {name}')
         destination = f'ghcr.io/{os.environ["GITHUB_REPOSITORY_OWNER"].lower()}/charts'
         existing = command(['skopeo', 'inspect', '--raw', f'docker://{destination}/{chart}:{version}'], missing=True)
         if existing is not None:

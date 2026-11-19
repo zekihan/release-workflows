@@ -1,3 +1,28 @@
+def previously_failed(sha, image, paths):
+    repo = os.environ['GITHUB_REPOSITORY']
+    run_id = os.environ['GITHUB_RUN_ID']
+    workflow = github(f'repos/{repo}/actions/runs/{run_id}')["workflow_id"]
+    page = 1
+    while True:
+        runs = github(f'repos/{repo}/actions/workflows/{workflow}/runs?head_sha={sha}&status=completed&per_page=100&page={page}')['workflow_runs']
+        for run in runs:
+            if str(run['id']) == run_id or run['conclusion'] not in ('failure', 'timed_out', 'cancelled', 'startup_failure'):
+                continue
+            if not paths:
+                return True
+            jobs_page = 1
+            while True:
+                jobs = github(f'repos/{repo}/actions/runs/{run["id"]}/jobs?per_page=100&page={jobs_page}')['jobs']
+                if any(j['conclusion'] in ('failure', 'timed_out', 'cancelled') and f'({image})' in j['name'] for j in jobs):
+                    return True
+                if len(jobs) < 100:
+                    break
+                jobs_page += 1
+        if len(runs) < 100:
+            return False
+        page += 1
+
+
 def decide():
     ref = os.environ['GITHUB_REF']
     event = os.environ['GITHUB_EVENT_NAME']
@@ -54,30 +79,8 @@ def decide():
             mirrors_match = bool(mirrors_match and all(versions) and versions[0]['digest'] == versions[1]['digest'])
         except RuntimeError:
             mirrors_match = False
-    repo = os.environ['GITHUB_REPOSITORY']
-    workflow = github(f'repos/{repo}/actions/runs/{os.environ["GITHUB_RUN_ID"]}')["workflow_id"]
-    failed = False
-    page = 1
-    while True:
-        runs = github(f'repos/{repo}/actions/workflows/{workflow}/runs?head_sha={sha}&status=completed&per_page=100&page={page}')['workflow_runs']
-        for run in runs:
-            if str(run['id']) == os.environ['GITHUB_RUN_ID'] or run['conclusion'] not in ('failure', 'timed_out', 'cancelled', 'startup_failure'):
-                continue
-            if not paths:
-                failed = True
-                break
-            jobs_page = 1
-            while True:
-                jobs = github(f'repos/{repo}/actions/runs/{run["id"]}/jobs?per_page=100&page={jobs_page}')['jobs']
-                if any(j['conclusion'] in ('failure', 'timed_out', 'cancelled') and f'({image})' in j['name'] for j in jobs):
-                    failed = True
-                if len(jobs) < 100:
-                    break
-                jobs_page += 1
-        if failed or len(runs) < 100:
-            break
-        page += 1
     manual = event == 'workflow_dispatch' or int(os.environ.get('GITHUB_RUN_ATTEMPT', '1')) > 1
+    failed = not (manual or mirrors_match) and previously_failed(sha, image, paths)
     decision = build_decision(manual=manual, force=os.environ['FORCE'] == 'true',
                               failed=failed, source_matches=source_matches, mirrors_match=mirrors_match)
     for current in images:

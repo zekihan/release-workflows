@@ -1,14 +1,15 @@
 import hashlib
+import json
 import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).parents[1]
 
 class FinalizeTests(unittest.TestCase):
-    def run_finalize(self, latest, *, error=False):
+    def run_finalize(self, latest, *, error=False, assets=None, env_overrides=None, command=None):
         namespace = {}
         for script in ['policy.py', 'registry.py']:
             exec(compile((ROOT / 'scripts' / script).read_text(), script, 'exec'), namespace)
@@ -21,18 +22,24 @@ class FinalizeTests(unittest.TestCase):
         def copy(src, dst):
             writes.append((src, dst))
             state[dst.removeprefix('docker://')] = release
-        namespace.update(inspect_image=inspect, publish_copy=copy, command=lambda args: b'1.0.0')
+        namespace.update(inspect_image=inspect, publish_copy=copy, command=command or (lambda args: b'1.0.0'))
         with tempfile.TemporaryDirectory() as directory:
             before = Path.cwd()
             os.chdir(directory)
             try:
-                Path('artifact').mkdir()
-                Path('artifact/manifest.json').write_bytes(b'{}')
+                artifact = Path('artifact')
+                artifact.mkdir()
+                manifest = {}
+                for name, data in (assets or {}).items():
+                    (artifact / name).write_bytes(data)
+                    manifest[name] = hashlib.sha256(data).hexdigest()
+                manifest_data = json.dumps(manifest, sort_keys=True).encode()
+                (artifact / 'manifest.json').write_bytes(manifest_data)
                 env = {'VERSION': '2.0.0', 'GITHUB_REF': 'refs/tags/v2.0.0',
-                       'MANIFEST_SHA256': hashlib.sha256(b'{}').hexdigest(), 'IMAGE': 'app',
+                       'MANIFEST_SHA256': hashlib.sha256(manifest_data).hexdigest(), 'IMAGE': 'app',
                        'IMAGE_DIGEST': 'prepared', 'GITHUB_REPOSITORY_OWNER': 'owner',
-                       'DOCKER_USERNAME': 'owner', 'GITHUB_RELEASE': 'false'}
-                with patch.dict(os.environ, env):
+                       'DOCKER_USERNAME': 'owner', 'GITHUB_RELEASE': 'false', 'CHART_PATH': '', 'CHART_NAME': ''}
+                with patch.dict(os.environ, env | (env_overrides or {})):
                     script = compile((ROOT / 'scripts/finalize.py').read_text(), 'finalize.py', 'exec')
                     if error:
                         with self.assertRaises(ValueError): exec(script, namespace)
@@ -41,6 +48,39 @@ class FinalizeTests(unittest.TestCase):
             finally:
                 os.chdir(before)
         return writes
+
+    def test_tgz_release_asset_does_not_require_chart_publishing(self):
+        command = Mock(side_effect=AssertionError('Unexpected chart command'))
+        self.run_finalize({}, assets={'app-linux-amd64.tgz': b'binary archive'},
+                          env_overrides={'IMAGE': ''}, command=command)
+        command.assert_not_called()
+
+    def test_chart_publication_ignores_other_tgz_release_assets(self):
+        name = 'widget-2.0.0.tgz'
+        chart = b'chart archive'
+
+        def chart_command(args, *, missing=False):
+            if args[:2] == ['skopeo', 'inspect']:
+                self.assertEqual(args[-1], 'docker://ghcr.io/owner/charts/widget:2.0.0')
+                return None if missing else b'chart manifest'
+            if args[:2] == ['helm', 'pull']:
+                (Path(args[-1]) / name).write_bytes(chart)
+            else:
+                self.assertEqual(args, ['helm', 'push', f'artifact/{name}', 'oci://ghcr.io/owner/charts'])
+            return b''
+
+        command = Mock(side_effect=chart_command)
+        self.run_finalize({}, assets={'app-linux-amd64.tgz': b'binary archive', name: chart},
+                          env_overrides={'IMAGE': '', 'CHART_PATH': 'charts/widget', 'CHART_NAME': 'widget'},
+                          command=command)
+        command.assert_any_call(['helm', 'push', f'artifact/{name}', 'oci://ghcr.io/owner/charts'])
+
+    def test_configured_chart_package_must_be_in_manifest(self):
+        command = Mock(side_effect=AssertionError('Unexpected chart command'))
+        with self.assertRaisesRegex(ValueError, 'Missing chart package widget-2.0.0.tgz'):
+            self.run_finalize({}, env_overrides={'IMAGE': '', 'CHART_PATH': 'charts/widget', 'CHART_NAME': 'widget'},
+                              command=command)
+        command.assert_not_called()
 
     def test_old_release_never_moves_latest_backward(self):
         state = {f'{r}/owner/app:latest': {'digest': 'newer', 'version': '3.0.0'} for r in ['ghcr.io', 'docker.io']}
@@ -86,7 +126,7 @@ class FinalizeTests(unittest.TestCase):
                 Path('artifact').mkdir()
                 Path('artifact/manifest.json').write_bytes(b'{}')
                 env = {'VERSION': '2.0.0', 'GITHUB_REF': 'refs/tags/v2.0.0',
-                       'MANIFEST_SHA256': hashlib.sha256(b'{}').hexdigest(), 'IMAGE': '',
+                       'MANIFEST_SHA256': hashlib.sha256(b'{}').hexdigest(), 'IMAGE': '', 'CHART_PATH': '',
                        'GITHUB_RELEASE': 'true', 'GITHUB_REPOSITORY': 'owner/app'}
                 import subprocess
                 with patch.dict(os.environ, env), patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)):
