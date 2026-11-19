@@ -155,10 +155,11 @@ arm['runs-on'] = 'ubuntu-' + ARM_RUNNER_VERSION
 for step in arm['steps']:
     if step.get('uses') == pin_ref('build'):
         step['with']['platforms'] = 'linux/arm64'
-        step['with']['cache-from'] += '-arm64'
-        step['with']['cache-to'] += '-arm64'
+        # A colon cannot appear in an image name used as a primary cache scope.
+        step['with']['cache-from'] += ':arm64'
+        step['with']['cache-to'] += ':arm64'
     if step.get('uses') == pin_ref('upload'):
-        step['with']['name'] += '-arm64'
+        step['with']['name'] = 'arm64-image-${{ inputs.image }}'
 image['jobs']['build-arm'] = arm
 for step in image['jobs']['build']['steps']:
     if step.get('uses') == pin_ref('build'):

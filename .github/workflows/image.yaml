@@ -763,8 +763,8 @@ jobs:
           org.opencontainers.image.revision=${{ github.sha }}
           org.opencontainers.image.version=${{ inputs.version || github.sha }}
           io.zekihan.build-inputs=${{ inputs.fingerprint }}
-        cache-from: type=gha,scope=${{ inputs.image }}-arm64
-        cache-to: type=gha,mode=max,scope=${{ inputs.image }}-arm64
+        cache-from: type=gha,scope=${{ inputs.image }}:arm64
+        cache-to: type=gha,mode=max,scope=${{ inputs.image }}:arm64
     - name: Smoke-test the native image from the prepared archive
       if: ${{ inputs.smoke-command != 'true' }}
       env:
@@ -779,7 +779,7 @@ jobs:
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       id: artifact
       with:
-        name: image-${{ inputs.image }}-arm64
+        name: arm64-image-${{ inputs.image }}
         path: ${{ runner.temp }}/image.tar
         if-no-files-found: error
         retention-days: 7
