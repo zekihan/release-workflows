@@ -247,14 +247,27 @@ jobs:
             return result.stdout
 
 
-        def inspect_image(reference):
-            raw = command(['skopeo', 'inspect', '--raw', reference], missing=True)
+        def inspect_image(reference, *, anonymous=False):
+            args = ['skopeo', 'inspect']
+            if anonymous:
+                args.append('--no-creds')
+            raw = command([*args, '--raw', reference], missing=True)
             if raw is None:
                 return None
-            metadata = json.loads(command(['skopeo', 'inspect', '--override-os', 'linux', '--override-arch', 'amd64', reference]))
-            return {'digest': metadata['Digest'], 'revision': metadata.get('Labels', {}).get('org.opencontainers.image.revision'),
-                    'version': metadata.get('Labels', {}).get('org.opencontainers.image.version'),
-                    'fingerprint': metadata.get('Labels', {}).get('io.zekihan.build-inputs'), 'index': json.loads(raw),
+            index = json.loads(raw)
+            platforms = [item.get('platform') or {} for item in index.get('manifests', [])]
+            platforms = [p for p in platforms if all(p.get(key) not in (None, '', 'unknown') for key in ('os', 'architecture'))]
+            default = {'os': 'linux', 'architecture': 'amd64'}
+            platform = next((p for p in platforms if (p['os'], p['architecture']) == ('linux', 'amd64')),
+                            platforms[0] if platforms else default)
+            args += ['--override-os', platform['os'], '--override-arch', platform['architecture']]
+            if platform.get('variant'):
+                args += ['--override-variant', platform['variant']]
+            metadata = json.loads(command([*args, '--no-tags', reference]))
+            labels = metadata.get('Labels') or {}
+            return {'digest': metadata['Digest'], 'revision': labels.get('org.opencontainers.image.revision'),
+                    'version': labels.get('org.opencontainers.image.version'),
+                    'fingerprint': labels.get('io.zekihan.build-inputs'), 'index': index,
                     'platform': f"{metadata.get('Os')}/{metadata.get('Architecture')}"}
 
 
@@ -293,8 +306,8 @@ jobs:
 
         def verify_access(reference, digest):
             if os.environ.get('PUBLIC_IMAGE') == 'true':
-                remote = command(['skopeo', 'inspect', '--no-creds', '--format', '{{.Digest}}', reference]).decode().strip()
-                if remote != digest:
+                remote = inspect_image(reference, anonymous=True)
+                if not remote or remote['digest'] != digest:
                     raise ValueError('Anonymous pull does not resolve to the published image')
 
 
@@ -528,14 +541,27 @@ jobs:
             return result.stdout
 
 
-        def inspect_image(reference):
-            raw = command(['skopeo', 'inspect', '--raw', reference], missing=True)
+        def inspect_image(reference, *, anonymous=False):
+            args = ['skopeo', 'inspect']
+            if anonymous:
+                args.append('--no-creds')
+            raw = command([*args, '--raw', reference], missing=True)
             if raw is None:
                 return None
-            metadata = json.loads(command(['skopeo', 'inspect', '--override-os', 'linux', '--override-arch', 'amd64', reference]))
-            return {'digest': metadata['Digest'], 'revision': metadata.get('Labels', {}).get('org.opencontainers.image.revision'),
-                    'version': metadata.get('Labels', {}).get('org.opencontainers.image.version'),
-                    'fingerprint': metadata.get('Labels', {}).get('io.zekihan.build-inputs'), 'index': json.loads(raw),
+            index = json.loads(raw)
+            platforms = [item.get('platform') or {} for item in index.get('manifests', [])]
+            platforms = [p for p in platforms if all(p.get(key) not in (None, '', 'unknown') for key in ('os', 'architecture'))]
+            default = {'os': 'linux', 'architecture': 'amd64'}
+            platform = next((p for p in platforms if (p['os'], p['architecture']) == ('linux', 'amd64')),
+                            platforms[0] if platforms else default)
+            args += ['--override-os', platform['os'], '--override-arch', platform['architecture']]
+            if platform.get('variant'):
+                args += ['--override-variant', platform['variant']]
+            metadata = json.loads(command([*args, '--no-tags', reference]))
+            labels = metadata.get('Labels') or {}
+            return {'digest': metadata['Digest'], 'revision': labels.get('org.opencontainers.image.revision'),
+                    'version': labels.get('org.opencontainers.image.version'),
+                    'fingerprint': labels.get('io.zekihan.build-inputs'), 'index': index,
                     'platform': f"{metadata.get('Os')}/{metadata.get('Architecture')}"}
 
 
@@ -574,8 +600,8 @@ jobs:
 
         def verify_access(reference, digest):
             if os.environ.get('PUBLIC_IMAGE') == 'true':
-                remote = command(['skopeo', 'inspect', '--no-creds', '--format', '{{.Digest}}', reference]).decode().strip()
-                if remote != digest:
+                remote = inspect_image(reference, anonymous=True)
+                if not remote or remote['digest'] != digest:
                     raise ValueError('Anonymous pull does not resolve to the published image')
 
 
