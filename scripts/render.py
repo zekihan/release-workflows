@@ -225,7 +225,8 @@ PY
                          'run': 'printf "%s" "$TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin'},
                         {'env': {'GH_TOKEN': '${{ github.token }}', 'GH_REPO': '${{ github.repository }}',
                             'VERSION': '${{ inputs.version }}', 'IMAGE': '${{ inputs.image }}', 'IMAGE_DIGEST': '${{ inputs.image-digest }}',
-                            'DOCKER_USERNAME': '${{ secrets.DOCKER_USERNAME }}', 'CHART_NAME': '${{ inputs.chart-name }}',
+                            'DOCKER_USERNAME': '${{ secrets.DOCKER_USERNAME }}', 'CHART_PATH': '${{ inputs.chart-path }}',
+                            'CHART_NAME': '${{ inputs.chart-name }}',
                             'GITHUB_RELEASE': '${{ inputs.github-release }}', 'MANIFEST_SHA256': '${{ needs.build.outputs.sha256 }}'},
                          'run': embedded('finalize.py')}]}
     }
