@@ -83,6 +83,8 @@ jobs:
         RELEASE_VERSION: ${{ inputs.version }}
       run: bash -euo pipefail -c "$PREPARE"
     - if: ${{ inputs.binaries }}
+      env:
+        GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
       run: goreleaser release --clean --skip=publish,announce
     - env:
         VERIFY: ${{ inputs.verify-command }}

@@ -35,5 +35,15 @@ class WorkflowConditionTests(unittest.TestCase):
                     self.assertRegex(match.group(2), r'^ # v\d+\.\d+\.\d+$', f'{path.name}:{number} uses lacks version comment')
 
 
+class ReleaseBuildTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        release = yaml.safe_load((WORKFLOWS / 'release.yaml').read_text())
+        cls.steps = release['jobs']['build']['steps']
+
+    def test_goreleaser_uses_the_workflow_tag(self):
+        step = next(step for step in self.steps if step.get('run', '').startswith('goreleaser release '))
+        self.assertEqual(step.get('env', {}).get('GORELEASER_CURRENT_TAG'), '${{ github.ref_name }}')
+
 if __name__ == '__main__':
     unittest.main()
