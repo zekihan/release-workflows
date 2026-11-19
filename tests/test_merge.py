@@ -7,6 +7,7 @@ import subprocess
 import os
 import shutil
 import importlib.util
+from unittest.mock import patch
 
 registry_spec = importlib.util.spec_from_file_location('test_registry', Path(__file__).with_name('test_registry.py'))
 registry = importlib.util.module_from_spec(registry_spec)
@@ -20,6 +21,23 @@ if not SKOPEO and os.environ.get('REQUIRE_SKOPEO') == '1':
 
 @unittest.skipUnless(SKOPEO, 'skopeo is required for native archive merge tests')
 class MergeTests(unittest.TestCase):
+    def test_inspect_and_verify_access_to_arm64_only_index(self):
+        namespace = {'__name__': 'test'}
+        for script in ['policy.py', 'registry.py']:
+            exec(compile((ROOT / 'scripts' / script).read_text(), script, 'exec'), namespace)
+        with tempfile.TemporaryDirectory() as directory:
+            archive = fixture_archive(directory, architectures=('arm64',))
+            source = f'oci-archive:{archive}'
+            top_descriptor, = json.loads((Path(directory) / 'layout/index.json').read_text())['manifests']
+            info = namespace['inspect_image'](source)
+            self.assertEqual(info['digest'], top_descriptor['digest'])
+            self.assertEqual(info['platform'], 'linux/arm64')
+            self.assertEqual(info['fingerprint'], 'fixture')
+            with patch.dict(os.environ, {'PUBLIC_IMAGE': 'true'}):
+                namespace['verify_access'](source, top_descriptor['digest'])
+                with self.assertRaisesRegex(ValueError, 'Anonymous pull'):
+                    namespace['verify_access'](source, 'sha256:' + '0' * 64)
+
     def test_native_archives_merge_deterministically_and_preserve_platforms(self):
         namespace = {'__name__': 'test'}
         for script in ['policy.py', 'registry.py', 'merge_oci.py']:
