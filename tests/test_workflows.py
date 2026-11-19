@@ -27,6 +27,39 @@ class WorkflowConditionTests(unittest.TestCase):
                         else:
                             self.assertEqual(job['runs-on'], '${{ inputs.runs-on }}')
 
+    def test_goreleaser_setup_covers_default_configs_and_release_binaries(self):
+        config_check = (
+            "hashFiles('.config/goreleaser.yml', '.config/goreleaser.yaml', '.goreleaser.yml', "
+            "'.goreleaser.yaml', 'goreleaser.yml', 'goreleaser.yaml') != ''"
+        )
+        for name, job, condition in (
+            ('image', 'build', config_check),
+            ('image', 'build-arm', config_check),
+            ('release', 'build', f'inputs.binaries || {config_check}'),
+        ):
+            with self.subTest(workflow=name, job=job):
+                workflow = yaml.safe_load((WORKFLOWS / f'{name}.yaml').read_text())
+                step = next(step for step in workflow['jobs'][job]['steps']
+                            if step.get('uses', '').startswith('goreleaser/goreleaser-action@'))
+                self.assertEqual(step['if'], '${{ ' + condition + ' }}')
+
+    def test_native_arm_artifact_and_cache_scope_do_not_collide_with_another_image(self):
+        jobs = yaml.safe_load((WORKFLOWS / 'image.yaml').read_text())['jobs']
+        for action, field in (
+            ('actions/upload-artifact@', 'name'),
+            ('docker/build-push-action@', 'cache-from'),
+            ('docker/build-push-action@', 'cache-to'),
+        ):
+            with self.subTest(field=field):
+                values = []
+                for job, image in (('build', 'widget'), ('build-arm', 'widget'), ('build', 'widget-arm64')):
+                    step = next(step for step in jobs[job]['steps'] if step.get('uses', '').startswith(action))
+                    value = step['with'][field].replace('${{ inputs.image }}', image)
+                    if field.startswith('cache-'):
+                        value = re.search(r'(?:^|,)scope=([^,]+)', value).group(1)
+                    values.append(value)
+                self.assertEqual(len(set(values)), len(values), values)
+
     def test_no_bare_always_in_generated_workflows(self):
         for path in sorted(WORKFLOWS.glob('*.yaml')):
             for number, line in enumerate(path.read_text().splitlines(), 1):
