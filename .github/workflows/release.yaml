@@ -426,8 +426,13 @@ jobs:
             page = 1
             while True:
                 releases = github(f'repos/{os.environ["GITHUB_REPOSITORY"]}/releases?per_page=100&page={page}')
-                stable.extend(stable_version(item['tag_name'].removeprefix('v')) for item in releases
-                              if not item['prerelease'] and not item['draft'])
+                for item in releases:
+                    if item['prerelease'] or item['draft']:
+                        continue
+                    try:
+                        stable.append(stable_version(item['tag_name'].removeprefix('v')))
+                    except ValueError:
+                        continue
                 if len(releases) < 100:
                     break
                 page += 1

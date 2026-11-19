@@ -65,7 +65,7 @@ class FinalizeTests(unittest.TestCase):
         writes = self.run_finalize(state)
         self.assertEqual(len(writes), 2)
 
-    def test_github_latest_considers_releases_beyond_first_page(self):
+    def test_github_latest_skips_legacy_tags_and_considers_releases_beyond_first_page(self):
         namespace = {}
         for script in ['policy.py', 'registry.py']:
             exec(compile((ROOT / 'scripts' / script).read_text(), script, 'exec'), namespace)
@@ -73,8 +73,11 @@ class FinalizeTests(unittest.TestCase):
         pages = []
         def github(endpoint):
             pages.append(endpoint)
-            version, count = ('1.0.0', 100) if endpoint.endswith('page=1') else ('3.0.0', 1)
-            return [{'tag_name': 'v' + version, 'prerelease': False, 'draft': False}] * count
+            def release(tag):
+                return {'tag_name': tag, 'prerelease': False, 'draft': False}
+            if endpoint.endswith('page=1'):
+                return [release('2025-01-01')] + [release('v1.0.0')] * 99
+            return [release('v3.0.0')]
         namespace.update(github=github, command=lambda args: calls.append(args) or b'')
         with tempfile.TemporaryDirectory() as directory:
             before = Path.cwd()
