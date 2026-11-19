@@ -183,7 +183,8 @@ release = {
                   'steps': [checkout(), *tools_setup(),
                       {'name': 'Prepare release without publication credentials', 'env': {'PREPARE': '${{ inputs.prepare-command }}',
                           'MODE': 'release', 'RELEASE_VERSION': '${{ inputs.version }}'}, 'run': 'bash -euo pipefail -c "$PREPARE"'},
-                      {'if': '${{ inputs.binaries }}', 'run': 'goreleaser release --clean --skip=publish,announce'},
+                      {'if': '${{ inputs.binaries }}', 'env': {'GORELEASER_CURRENT_TAG': '${{ github.ref_name }}'},
+                       'run': 'goreleaser release --clean --skip=publish,announce'},
                       {'env': {'VERIFY': '${{ inputs.verify-command }}'}, 'run': 'bash -euo pipefail -c "$VERIFY"'},
                       action('helm', **{'if': "${{ inputs.chart-path != '' }}", 'with': {'version': HELM_VERSION}}),
                       {'if': "${{ inputs.chart-path != '' }}", 'env': {'CHART_PATH': '${{ inputs.chart-path }}', 'VERSION': '${{ inputs.version }}'},
@@ -193,7 +194,7 @@ import hashlib, json, os, pathlib, shutil
 dest = pathlib.Path('release-assets')
 dest.mkdir(exist_ok=True)
 manifest = {}
-for pattern in ('*.tar.gz', '*.zip', '*.tgz', 'checksums.txt', 'CHANGELOG.md'):
+for pattern in ('*.tar', '*.gz', '*.tgz', '*.xz', '*.txz', '*.tar.zst', '*.tzst', '*.zip', 'checksums.txt', 'CHANGELOG.md'):
     for path in pathlib.Path('dist').glob(pattern):
         shutil.copyfile(path, dest / path.name)
         with path.open('rb') as stream:

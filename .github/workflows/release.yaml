@@ -83,6 +83,8 @@ jobs:
         RELEASE_VERSION: ${{ inputs.version }}
       run: bash -euo pipefail -c "$PREPARE"
     - if: ${{ inputs.binaries }}
+      env:
+        GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
       run: goreleaser release --clean --skip=publish,announce
     - env:
         VERIFY: ${{ inputs.verify-command }}
@@ -107,7 +109,7 @@ jobs:
         dest = pathlib.Path('release-assets')
         dest.mkdir(exist_ok=True)
         manifest = {}
-        for pattern in ('*.tar.gz', '*.zip', '*.tgz', 'checksums.txt', 'CHANGELOG.md'):
+        for pattern in ('*.tar', '*.gz', '*.tgz', '*.xz', '*.txz', '*.tar.zst', '*.tzst', '*.zip', 'checksums.txt', 'CHANGELOG.md'):
             for path in pathlib.Path('dist').glob(pattern):
                 shutil.copyfile(path, dest / path.name)
                 with path.open('rb') as stream:
