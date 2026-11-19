@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -49,6 +50,31 @@ class ReleaseBuildTests(unittest.TestCase):
     def test_goreleaser_uses_the_workflow_tag(self):
         step = next(step for step in self.steps if step.get('run', '').startswith('goreleaser release '))
         self.assertEqual(step.get('env', {}).get('GORELEASER_CURRENT_TAG'), '${{ github.ref_name }}')
+
+    @unittest.skipUnless(shutil.which('helm'), 'helm is required for chart build tests')
+    def test_chart_lint_checks_the_packaged_release_metadata(self):
+        step = next(step for step in self.steps if 'helm package ' in step.get('run', ''))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            chart = root / 'charts/widget'
+            (chart / 'templates').mkdir(parents=True)
+            (chart / 'Chart.yaml').write_text(
+                'apiVersion: v2\nname: widget\nversion: 0.1.0\nappVersion: "0.1.0"\n')
+            (chart / 'templates/settings.yaml').write_text('''apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: widget
+data:
+  settings: {{ if and (eq .Chart.Version "2.0.0") (eq .Chart.AppVersion "2.0.0") }}[unclosed{{ else }}ok{{ end }}
+''')
+            env = {'PATH': os.environ['PATH'], 'CHART_PATH': 'charts/widget', 'CHART_NAME': 'widget',
+                   'VERSION': '2.0.0', 'HELM_CONFIG_HOME': str(root / 'config'),
+                   'HELM_CACHE_HOME': str(root / 'cache'), 'KUBECONFIG': str(root / 'kubeconfig')}
+            result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', step['run']], cwd=root, env=env,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn('templates/settings.yaml: unable to parse YAML', result.stdout)
+        self.assertEqual(step.get('env', {}).get('CHART_NAME'), '${{ inputs.chart-name }}')
 
     def test_manifest_includes_goreleaser_archive_formats(self):
         step = next(step for step in self.steps if step.get('id') == 'manifest')

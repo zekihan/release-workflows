@@ -187,8 +187,9 @@ release = {
                        'run': 'goreleaser release --clean --skip=publish,announce'},
                       {'env': {'VERIFY': '${{ inputs.verify-command }}'}, 'run': 'bash -euo pipefail -c "$VERIFY"'},
                       action('helm', **{'if': "${{ inputs.chart-path != '' }}", 'with': {'version': HELM_VERSION}}),
-                      {'if': "${{ inputs.chart-path != '' }}", 'env': {'CHART_PATH': '${{ inputs.chart-path }}', 'VERSION': '${{ inputs.version }}'},
-                       'run': 'helm lint "$CHART_PATH"\nhelm package "$CHART_PATH" --version "$VERSION" --app-version "$VERSION" --destination dist\n'},
+                      {'if': "${{ inputs.chart-path != '' }}", 'env': {'CHART_PATH': '${{ inputs.chart-path }}',
+                          'CHART_NAME': '${{ inputs.chart-name }}', 'VERSION': '${{ inputs.version }}'},
+                       'run': 'helm package "$CHART_PATH" --version "$VERSION" --app-version "$VERSION" --destination dist\nhelm lint "dist/$CHART_NAME-$VERSION.tgz"\n'},
                       {'id': 'manifest', 'env': {'NOTES_FILE': '${{ inputs.notes-file }}'}, 'run': '''python3 - <<'PY'
 import hashlib, json, os, pathlib, shutil
 dest = pathlib.Path('release-assets')

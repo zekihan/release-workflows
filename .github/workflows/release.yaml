@@ -96,10 +96,11 @@ jobs:
     - if: ${{ inputs.chart-path != '' }}
       env:
         CHART_PATH: ${{ inputs.chart-path }}
+        CHART_NAME: ${{ inputs.chart-name }}
         VERSION: ${{ inputs.version }}
       run: |
-        helm lint "$CHART_PATH"
         helm package "$CHART_PATH" --version "$VERSION" --app-version "$VERSION" --destination dist
+        helm lint "dist/$CHART_NAME-$VERSION.tgz"
     - id: manifest
       env:
         NOTES_FILE: ${{ inputs.notes-file }}
