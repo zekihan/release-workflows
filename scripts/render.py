@@ -66,11 +66,18 @@ def registry_setup():
     ]
 
 
-def tools_setup():
+def tools_setup(*, release_binaries=False):
+    goreleaser_condition = (
+        "hashFiles('.config/goreleaser.yml', '.config/goreleaser.yaml', '.goreleaser.yml', "
+        "'.goreleaser.yaml', 'goreleaser.yml', 'goreleaser.yaml') != ''"
+    )
+    if release_binaries:
+        goreleaser_condition = 'inputs.binaries || ' + goreleaser_condition
     return [
         action('go', **{'if': "${{ hashFiles('go.mod') != '' }}", 'with': {'go-version-file': 'go.mod', 'cache': False}}),
         action('node', **{'if': "${{ inputs.node-version != '' }}", 'with': {'node-version': '${{ inputs.node-version }}'}}),
-        action('goreleaser', **{'if': "${{ hashFiles('.goreleaser.yaml') != '' }}", 'with': {'version': '${{ inputs.goreleaser-version }}', 'install-only': True}}),
+        action('goreleaser', **{'if': '${{ ' + goreleaser_condition + ' }}',
+                               'with': {'version': '${{ inputs.goreleaser-version }}', 'install-only': True}}),
     ]
 
 
@@ -180,7 +187,7 @@ release = {
     'jobs': {
         'build': {'runs-on': '${{ inputs.runs-on }}', 'timeout-minutes': 45,
                   'outputs': {'artifact': '${{ steps.artifact.outputs.artifact-id }}', 'sha256': '${{ steps.manifest.outputs.sha256 }}'},
-                  'steps': [checkout(), *tools_setup(),
+                  'steps': [checkout(), *tools_setup(release_binaries=True),
                       {'name': 'Prepare release without publication credentials', 'env': {'PREPARE': '${{ inputs.prepare-command }}',
                           'MODE': 'release', 'RELEASE_VERSION': '${{ inputs.version }}'}, 'run': 'bash -euo pipefail -c "$PREPARE"'},
                       {'if': '${{ inputs.binaries }}', 'env': {'GORELEASER_CURRENT_TAG': '${{ github.ref_name }}'},

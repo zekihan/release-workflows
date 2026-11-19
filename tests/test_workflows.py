@@ -27,6 +27,22 @@ class WorkflowConditionTests(unittest.TestCase):
                         else:
                             self.assertEqual(job['runs-on'], '${{ inputs.runs-on }}')
 
+    def test_goreleaser_setup_covers_default_configs_and_release_binaries(self):
+        config_check = (
+            "hashFiles('.config/goreleaser.yml', '.config/goreleaser.yaml', '.goreleaser.yml', "
+            "'.goreleaser.yaml', 'goreleaser.yml', 'goreleaser.yaml') != ''"
+        )
+        for name, job, condition in (
+            ('image', 'build', config_check),
+            ('image', 'build-arm', config_check),
+            ('release', 'build', f'inputs.binaries || {config_check}'),
+        ):
+            with self.subTest(workflow=name, job=job):
+                workflow = yaml.safe_load((WORKFLOWS / f'{name}.yaml').read_text())
+                step = next(step for step in workflow['jobs'][job]['steps']
+                            if step.get('uses', '').startswith('goreleaser/goreleaser-action@'))
+                self.assertEqual(step['if'], '${{ ' + condition + ' }}')
+
     def test_no_bare_always_in_generated_workflows(self):
         for path in sorted(WORKFLOWS.glob('*.yaml')):
             for number, line in enumerate(path.read_text().splitlines(), 1):

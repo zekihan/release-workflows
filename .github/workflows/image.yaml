@@ -78,7 +78,8 @@ jobs:
       with:
         node-version: ${{ inputs.node-version }}
     - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
-      if: ${{ hashFiles('.goreleaser.yaml') != '' }}
+      if: ${{ hashFiles('.config/goreleaser.yml', '.config/goreleaser.yaml', '.goreleaser.yml', '.goreleaser.yaml', 'goreleaser.yml',
+        'goreleaser.yaml') != '' }}
       with:
         version: ${{ inputs.goreleaser-version }}
         install-only: true
@@ -737,7 +738,8 @@ jobs:
       with:
         node-version: ${{ inputs.node-version }}
     - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
-      if: ${{ hashFiles('.goreleaser.yaml') != '' }}
+      if: ${{ hashFiles('.config/goreleaser.yml', '.config/goreleaser.yaml', '.goreleaser.yml', '.goreleaser.yaml', 'goreleaser.yml',
+        'goreleaser.yaml') != '' }}
       with:
         version: ${{ inputs.goreleaser-version }}
         install-only: true
