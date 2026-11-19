@@ -112,7 +112,7 @@ jobs:
       run: |
         sudo apt-get update -qq
         sudo apt-get install -y --no-install-recommends skopeo
-        skopeo copy --override-os linux --override-arch "$(go env GOARCH)" oci-archive:"$RUNNER_TEMP/image.tar" docker-daemon:local/publishing-smoke:latest
+        skopeo copy oci-archive:"$RUNNER_TEMP/image.tar" docker-daemon:local/publishing-smoke:latest
         bash -euo pipefail -c "$SMOKE"
     - id: checksum
       run: echo "sha256=$(sha256sum "$RUNNER_TEMP/image.tar" | cut -d " " -f 1)" >> "$GITHUB_OUTPUT"
@@ -772,7 +772,7 @@ jobs:
       run: |
         sudo apt-get update -qq
         sudo apt-get install -y --no-install-recommends skopeo
-        skopeo copy --override-os linux --override-arch "$(go env GOARCH)" oci-archive:"$RUNNER_TEMP/image.tar" docker-daemon:local/publishing-smoke:latest
+        skopeo copy oci-archive:"$RUNNER_TEMP/image.tar" docker-daemon:local/publishing-smoke:latest
         bash -euo pipefail -c "$SMOKE"
     - id: checksum
       run: echo "sha256=$(sha256sum "$RUNNER_TEMP/image.tar" | cut -d " " -f 1)" >> "$GITHUB_OUTPUT"
