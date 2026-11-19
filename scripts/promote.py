@@ -1,3 +1,6 @@
+import csv
+
+
 def promote():
     verify_archive('artifact/image.tar', os.environ['ARCHIVE_SHA256'])
     source = 'oci-archive:artifact/image.tar'
@@ -10,7 +13,9 @@ def promote():
     fingerprint = os.environ['FINGERPRINT']
     if candidate['revision'] != sha or candidate['fingerprint'] != fingerprint:
         raise ValueError('Archive source identity does not match the requested publication')
-    validate_platforms(candidate['index'], os.environ['PLATFORMS'], candidate.get('platform'))
+    platform_rows = csv.reader(os.environ['PLATFORMS'].splitlines())
+    platforms = (platform.strip() for row in platform_rows for platform in row)
+    validate_platforms(candidate['index'], ','.join(filter(None, platforms)), candidate.get('platform'))
     names = image_names()
     if mode == 'release':
         stable_version(version)

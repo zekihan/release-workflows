@@ -32,12 +32,23 @@ class PublicationTests(unittest.TestCase):
         old = self.meta('newer') | {'revision': 'b' * 40}
         self.assertEqual(self.run_publish(mode='edge', existing={'ghcr.io/owner/app:edge': old}, error=True), [])
 
+    def test_platform_list_formats_publish_both_mirrors(self):
+        for platforms in ('linux/amd64, linux/arm64', 'linux/amd64\nlinux/arm64\n', '"linux/amd64","linux/arm64"'):
+            with self.subTest(platforms=platforms):
+                writes = self.run_publish(mode='edge', platforms=platforms)
+                self.assertCountEqual([destination for _, destination in writes],
+                                      ['docker://ghcr.io/owner/app:edge', 'docker://docker.io/owner/app:edge'])
+
+    def test_multiline_platform_list_still_requires_every_platform(self):
+        with self.assertRaisesRegex(ValueError, r"Missing image platforms: \['linux/s390x'\]"):
+            self.run_publish(mode='edge', platforms='linux/amd64\nlinux/s390x\n')
+
     @staticmethod
     def meta(digest):
         return {'digest': digest, 'revision': 'a' * 40, 'version': '1.0.0', 'fingerprint': 'f',
                 'index': {'manifests': [{'platform': {'os': 'linux', 'architecture': arch}} for arch in ['amd64', 'arm64']]}}
 
-    def run_publish(self, *, mode, existing=None, error=False):
+    def run_publish(self, *, mode, existing=None, error=False, platforms='linux/amd64,linux/arm64'):
         namespace = {}
         for script in ['policy.py', 'registry.py']:
             exec(compile((ROOT / 'scripts' / script).read_text(), script, 'exec'), namespace)
@@ -67,7 +78,7 @@ class PublicationTests(unittest.TestCase):
                 Path('artifact').mkdir()
                 Path('artifact/image.tar').write_bytes(b'fixture')
                 env = {'VERSION': '' if mode == 'edge' else '1.0.0', 'IMAGE': 'app', 'MODE': mode,
-                       'GITHUB_SHA': 'a' * 40, 'FINGERPRINT': 'f', 'PLATFORMS': 'linux/amd64,linux/arm64',
+                       'GITHUB_SHA': 'a' * 40, 'FINGERPRINT': 'f', 'PLATFORMS': platforms, 'PUBLIC_IMAGE': 'false',
                        'GITHUB_REF': 'refs/tags/v1.0.0' if mode == 'release' else 'refs/heads/main',
                        'GITHUB_REPOSITORY_OWNER': 'owner', 'DOCKER_USERNAME': 'owner',
                        'GITHUB_OUTPUT': 'outputs', 'GITHUB_STEP_SUMMARY': 'summary',
