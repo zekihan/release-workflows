@@ -1,5 +1,10 @@
+import hashlib
+import json
+import os
 from pathlib import Path
 import re
+import subprocess
+import tempfile
 import unittest
 
 import yaml
@@ -44,6 +49,32 @@ class ReleaseBuildTests(unittest.TestCase):
     def test_goreleaser_uses_the_workflow_tag(self):
         step = next(step for step in self.steps if step.get('run', '').startswith('goreleaser release '))
         self.assertEqual(step.get('env', {}).get('GORELEASER_CURRENT_TAG'), '${{ github.ref_name }}')
+
+    def test_manifest_includes_goreleaser_archive_formats(self):
+        step = next(step for step in self.steps if step.get('id') == 'manifest')
+        archives = [
+            'widget.tar.gz', 'widget.tgz', 'widget.zip', 'widget.tar.xz', 'widget.txz',
+            'widget.tar.zst', 'widget.tzst', 'widget.tar', 'widget.gz', 'widget.xz',
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dist = root / 'dist'
+            dist.mkdir()
+            for name in archives:
+                (dist / name).write_bytes(name.encode())
+            (dist / 'artifacts.json').write_text('[]')
+            output = root / 'output'
+            subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', step['run']], cwd=root, check=True,
+                           env={'PATH': os.environ['PATH'], 'GITHUB_OUTPUT': str(output)})
+            staged = root / 'release-assets'
+            manifest_data = (staged / 'manifest.json').read_bytes()
+            manifest = json.loads(manifest_data)
+            self.assertEqual(set(manifest), {*archives, 'SHA256SUMS'})
+            for name in archives:
+                self.assertEqual((staged / name).read_bytes(), name.encode())
+                self.assertEqual(manifest[name], hashlib.sha256(name.encode()).hexdigest())
+            self.assertEqual(output.read_text(), f'sha256={hashlib.sha256(manifest_data).hexdigest()}\n')
+
 
 if __name__ == '__main__':
     unittest.main()

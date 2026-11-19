@@ -194,7 +194,7 @@ import hashlib, json, os, pathlib, shutil
 dest = pathlib.Path('release-assets')
 dest.mkdir(exist_ok=True)
 manifest = {}
-for pattern in ('*.tar.gz', '*.zip', '*.tgz', 'checksums.txt', 'CHANGELOG.md'):
+for pattern in ('*.tar', '*.gz', '*.tgz', '*.xz', '*.txz', '*.tar.zst', '*.tzst', '*.zip', 'checksums.txt', 'CHANGELOG.md'):
     for path in pathlib.Path('dist').glob(pattern):
         shutil.copyfile(path, dest / path.name)
         with path.open('rb') as stream:
