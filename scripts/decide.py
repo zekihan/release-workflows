@@ -58,14 +58,13 @@ def decide():
         import shlex
         config = {}
         for line in Path(os.environ['VERSION_FILE']).read_text().splitlines():
-            if re.match(r'^(version|revision):', line):
+            if re.match(r'^(version|revision|versioning):', line):
                 key, value = line.split(':', 1)
                 words = shlex.split(value, comments=True)
                 if len(words) != 1:
-                    raise ValueError('Expected scalar version/revision')
+                    raise ValueError('Expected scalar version/revision/versioning')
                 config[key] = words[0]
-        # Images without an upstream omit revision and release their own X.Y.Z.
-        version = release_identity(config['version'], config.get('revision'))
+        version = declared_identity(config)
     names = image_names()
     images = []
     try:

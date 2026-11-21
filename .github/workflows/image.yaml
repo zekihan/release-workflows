@@ -187,6 +187,20 @@ jobs:
             return f'{version}-r{revision}'
 
 
+        def declared_identity(config):
+            """Release identity for a declarative image, whose config states its versioning profile."""
+            versioning = config.get('versioning')
+            if versioning == 'upstream':
+                if 'revision' not in config:
+                    raise ValueError('versioning: upstream requires a packaging revision')
+                return release_identity(config.get('version', ''), config['revision'])
+            if versioning == 'own':
+                if 'revision' in config:
+                    raise ValueError('versioning: own must not declare a packaging revision')
+                return release_identity(config.get('version', ''))
+            raise ValueError('Declare versioning: upstream or versioning: own')
+
+
         def build_decision(*, manual, force, failed, source_matches, mirrors_match):
             if force and not manual:
                 raise ValueError('Force is only allowed on manual runs')
@@ -479,6 +493,20 @@ jobs:
             if not re.fullmatch(r'[1-9]\d*', str(revision)):
                 raise ValueError('Packaging revision must be a positive integer')
             return f'{version}-r{revision}'
+
+
+        def declared_identity(config):
+            """Release identity for a declarative image, whose config states its versioning profile."""
+            versioning = config.get('versioning')
+            if versioning == 'upstream':
+                if 'revision' not in config:
+                    raise ValueError('versioning: upstream requires a packaging revision')
+                return release_identity(config.get('version', ''), config['revision'])
+            if versioning == 'own':
+                if 'revision' in config:
+                    raise ValueError('versioning: own must not declare a packaging revision')
+                return release_identity(config.get('version', ''))
+            raise ValueError('Declare versioning: upstream or versioning: own')
 
 
         def build_decision(*, manual, force, failed, source_matches, mirrors_match):

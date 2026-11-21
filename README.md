@@ -25,8 +25,11 @@ count as evidence that a previous publication succeeded.
 Stable versions use `vX.Y.Z` Git tags and unprefixed image tags. Development images
 use `edge`. The independently versioned upstream-image profile publishes declared
 `<version>-r<revision>` versions and promotes `latest` by source history, preserving
-composite upstream version strings. An image with no upstream omits `revision` and
-declares its own stable `X.Y.Z`, which is published as that version. An unchanged declaration can receive new
+composite upstream version strings. Each declarative config states its profile:
+`versioning: upstream` requires a positive `revision` and publishes
+`<version>-r<revision>`; `versioning: own` forbids `revision` and publishes the
+image's own stable `X.Y.Z`. A missing or unknown profile fails the decision, so a
+dropped `revision` cannot turn an upstream image into a self-versioned one. An unchanged declaration can receive new
 dependencies on `edge` without changing its existing immutable release.
 
 The two registry updates are not transactional. If one fails, rerun publication

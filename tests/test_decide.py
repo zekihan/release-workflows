@@ -41,13 +41,18 @@ class DecideTests(unittest.TestCase):
         for conclusion in ['failure', 'cancelled', 'timed_out']:
             self.assertEqual(self.decide(conclusion=conclusion)['build'], 'false')
 
-    def test_declarative_identity_uses_revision_only_when_declared(self):
-        upstream = 'version: v1.8.2 # renovate: depName=x\narch: linux/amd64\nrevision: 2\n'
+    def test_declarative_identity_follows_the_declared_versioning(self):
+        upstream = 'version: v1.8.2 # renovate: depName=x\nversioning: upstream\narch: linux/amd64\nrevision: 2\n'
         self.assertEqual(self.decide(mode='declarative', version_file=upstream)['version'], 'v1.8.2-r2')
-        own = 'version: 1.0.1\narch: linux/amd64\n'
+        own = 'version: 1.0.1\nversioning: own\narch: linux/amd64\n'
         self.assertEqual(self.decide(mode='declarative', version_file=own)['version'], '1.0.1')
-        with self.assertRaises(ValueError):
-            self.decide(mode='declarative', version_file='version: v1.0.1\n')
+        for config in [
+            'version: 2.3.1\narch: linux/amd64\n',  # dropped revision, no profile
+            'version: 2.3.1\narch: linux/amd64\nrevision: 3\n',  # legacy config without a profile
+            'version: 2.3.1\nversioning: upstream\n',  # upstream that lost its revision
+        ]:
+            with self.subTest(config=config), self.assertRaises(ValueError):
+                self.decide(mode='declarative', version_file=config)
 
     def test_explicit_recovery_and_new_revision_build(self):
         self.assertEqual(self.decide(conclusion='failure', event='workflow_dispatch')['build'], 'true')

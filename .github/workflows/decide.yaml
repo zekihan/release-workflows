@@ -108,6 +108,20 @@ jobs:
             return f'{version}-r{revision}'
 
 
+        def declared_identity(config):
+            """Release identity for a declarative image, whose config states its versioning profile."""
+            versioning = config.get('versioning')
+            if versioning == 'upstream':
+                if 'revision' not in config:
+                    raise ValueError('versioning: upstream requires a packaging revision')
+                return release_identity(config.get('version', ''), config['revision'])
+            if versioning == 'own':
+                if 'revision' in config:
+                    raise ValueError('versioning: own must not declare a packaging revision')
+                return release_identity(config.get('version', ''))
+            raise ValueError('Declare versioning: upstream or versioning: own')
+
+
         def build_decision(*, manual, force, failed, source_matches, mirrors_match):
             if force and not manual:
                 raise ValueError('Force is only allowed on manual runs')
@@ -319,14 +333,13 @@ jobs:
                 import shlex
                 config = {}
                 for line in Path(os.environ['VERSION_FILE']).read_text().splitlines():
-                    if re.match(r'^(version|revision):', line):
+                    if re.match(r'^(version|revision|versioning):', line):
                         key, value = line.split(':', 1)
                         words = shlex.split(value, comments=True)
                         if len(words) != 1:
-                            raise ValueError('Expected scalar version/revision')
+                            raise ValueError('Expected scalar version/revision/versioning')
                         config[key] = words[0]
-                # Images without an upstream omit revision and release their own X.Y.Z.
-                version = release_identity(config['version'], config.get('revision'))
+                version = declared_identity(config)
             names = image_names()
             images = []
             try:
