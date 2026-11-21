@@ -325,7 +325,8 @@ jobs:
                         if len(words) != 1:
                             raise ValueError('Expected scalar version/revision')
                         config[key] = words[0]
-                version = release_identity(config['version'], config['revision'])
+                # Images without an upstream omit revision and release their own X.Y.Z.
+                version = release_identity(config['version'], config.get('revision'))
             names = image_names()
             images = []
             try:
