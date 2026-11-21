@@ -22,6 +22,20 @@ class PolicyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 policy.release_identity('3.27.1', revision)
 
+    def test_declared_versioning_is_required_and_consistent(self):
+        self.assertEqual(policy.declared_identity({'versioning': 'upstream', 'version': '3.27.2', 'revision': '1'}), '3.27.2-r1')
+        self.assertEqual(policy.declared_identity({'versioning': 'own', 'version': '1.0.1'}), '1.0.1')
+        for config in [
+            {'version': '3.27.2', 'revision': '1'},
+            {'version': '3.27.2'},
+            {'versioning': 'upstream', 'version': '3.27.2'},
+            {'versioning': 'own', 'version': '1.0.1', 'revision': '1'},
+            {'versioning': 'own', 'version': 'v1.0.1'},
+            {'versioning': 'auto', 'version': '1.0.1'},
+        ]:
+            with self.subTest(config=config), self.assertRaises(ValueError):
+                policy.declared_identity(config)
+
     def test_failure_suppression_and_manual_recovery(self):
         base = dict(manual=False, force=False, failed=True, source_matches=False, mirrors_match=False)
         self.assertEqual(policy.build_decision(**base), 'skip-failure')

@@ -8,7 +8,7 @@ ROOT = Path(__file__).parents[1]
 
 class DecideTests(unittest.TestCase):
     def decide(self, *, conclusion=None, event='schedule', attempt='1', force='false', unknown=False,
-               current=None, history_unavailable=False):
+               current=None, history_unavailable=False, mode='edge', version_file=None):
         namespace = {}
         for script in ['policy.py', 'registry.py']:
             exec(compile((ROOT / 'scripts' / script).read_text(), script, 'exec'), namespace)
@@ -29,12 +29,30 @@ class DecideTests(unittest.TestCase):
                    'GITHUB_SHA': 'a' * 40, 'IMAGE': 'app', 'GITHUB_REPOSITORY_OWNER': 'owner',
                    'DOCKER_USERNAME': 'owner', 'GITHUB_REPOSITORY': 'owner/app', 'GITHUB_RUN_ID': '2',
                    'GITHUB_RUN_ATTEMPT': attempt, 'FORCE': force, 'GITHUB_OUTPUT': str(out), 'INPUT_PATHS': '[]'}
+            env['MODE'] = mode
+            if version_file:
+                path = Path(directory) / 'config.yaml'
+                path.write_text(version_file)
+                env['VERSION_FILE'] = str(path)
             with patch.dict(os.environ, env):namespace['decide']()
             return dict(line.split('=', 1) for line in out.read_text().splitlines())
 
     def test_failed_cancelled_and_timed_out_revisions_do_not_retry(self):
         for conclusion in ['failure', 'cancelled', 'timed_out']:
             self.assertEqual(self.decide(conclusion=conclusion)['build'], 'false')
+
+    def test_declarative_identity_follows_the_declared_versioning(self):
+        upstream = 'version: v1.8.2 # renovate: depName=x\nversioning: upstream\narch: linux/amd64\nrevision: 2\n'
+        self.assertEqual(self.decide(mode='declarative', version_file=upstream)['version'], 'v1.8.2-r2')
+        own = 'version: 1.0.1\nversioning: own\narch: linux/amd64\n'
+        self.assertEqual(self.decide(mode='declarative', version_file=own)['version'], '1.0.1')
+        for config in [
+            'version: 2.3.1\narch: linux/amd64\n',  # dropped revision, no profile
+            'version: 2.3.1\narch: linux/amd64\nrevision: 3\n',  # legacy config without a profile
+            'version: 2.3.1\nversioning: upstream\n',  # upstream that lost its revision
+        ]:
+            with self.subTest(config=config), self.assertRaises(ValueError):
+                self.decide(mode='declarative', version_file=config)
 
     def test_explicit_recovery_and_new_revision_build(self):
         self.assertEqual(self.decide(conclusion='failure', event='workflow_dispatch')['build'], 'true')
