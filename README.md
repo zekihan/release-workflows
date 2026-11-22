@@ -45,7 +45,7 @@ callers. No secret values belong here.
 
 All three reusable workflows accept a string `runs-on` input that defaults to
 `ubuntu-latest`. Pass a self-hosted Linux runner label to run the jobs there.
-Provide Git, Bash, Python 3 (standard library only), and the GitHub CLI on the
+Provide Git, Bash, Python 3.11 or newer (standard library only), and the GitHub CLI on the
 runner. Image jobs need a Docker daemon accessible to the runner user and set
 up Buildx with an action. Registry jobs install skopeo with sudo and apt when
 it is missing. Image smoke checks install skopeo with sudo and apt when enabled.
@@ -57,6 +57,22 @@ Set `qemu: true` when the build needs to execute arm64 code.
 `docker/setup-qemu-action` requires a Docker daemon the runner user can access.
 Reserve `native-arm: true` for builds that should use the pinned GitHub-hosted
 arm64 runner.
+
+## Calling permissions and secrets
+
+The caller must grant the called jobs the token permissions they request:
+`decide.yaml` needs `contents: read`, `actions: read` and `packages: read`;
+`image.yaml` needs `contents: read` and `packages: write`; and `release.yaml`
+needs `contents: write` and `packages: write`. Pass `DOCKER_USERNAME` and
+`DOCKER_PASSWORD` to `image.yaml`. They are optional in the other workflow
+interfaces, but are needed when their `image` input is set because those jobs
+log in to Docker Hub. The GitHub token is used for GHCR authentication.
+
+`decide.yaml` returns `build`, `version`, and `fingerprint`; pass the latter
+values to `image.yaml` when building. `image.yaml` returns `digest`, which must
+be passed as `image-digest` to `release.yaml` when releasing an image.
+`release.yaml` defaults to building binaries and creating a GitHub release;
+set `binaries` or `github-release` to `false` to disable those operations.
 
 ## Development
 
