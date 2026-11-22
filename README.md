@@ -45,7 +45,7 @@ callers. No secret values belong here.
 
 All three reusable workflows accept a string `runs-on` input that defaults to
 `ubuntu-latest`. Pass a self-hosted Linux runner label to run the jobs there.
-Provide Git, Bash, Python 3.11 or newer (standard library only), and the GitHub CLI on the
+Provide Git, Bash, Python 3 (standard library only), and the GitHub CLI on the
 runner. Image jobs need a Docker daemon accessible to the runner user and set
 up Buildx with an action. Registry jobs install skopeo with sudo and apt when
 it is missing. Image smoke checks install skopeo with sudo and apt when enabled.
