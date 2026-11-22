@@ -58,6 +58,22 @@ Set `qemu: true` when the build needs to execute arm64 code.
 Reserve `native-arm: true` for builds that should use the pinned GitHub-hosted
 arm64 runner.
 
+## Calling permissions and secrets
+
+The caller must grant the called jobs the token permissions they request:
+`decide.yaml` needs `contents: read`, `actions: read` and `packages: read`;
+`image.yaml` needs `contents: read` and `packages: write`; and `release.yaml`
+needs `contents: write` and `packages: write`. Pass `DOCKER_USERNAME` and
+`DOCKER_PASSWORD` to `image.yaml`. They are optional in the other workflow
+interfaces, but are needed when their `image` input is set because those jobs
+log in to Docker Hub. The GitHub token is used for GHCR authentication.
+
+`decide.yaml` returns `build`, `version`, and `fingerprint`; pass the latter
+values to `image.yaml` when building. `image.yaml` returns `digest`, which must
+be passed as `image-digest` to `release.yaml` when releasing an image.
+`release.yaml` defaults to building binaries and creating a GitHub release;
+set `binaries` or `github-release` to `false` to disable those operations.
+
 ## Development
 
 Install `requirements-dev.txt` into a virtual environment and install actionlint.
