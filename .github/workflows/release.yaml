@@ -33,9 +33,6 @@ name: Publish stable release
       verify-command:
         type: string
         default: 'true'
-      notes-file:
-        type: string
-        default: ''
       node-version:
         type: string
         default: ''
@@ -104,7 +101,6 @@ jobs:
         helm lint "dist/$CHART_NAME-$VERSION.tgz"
     - id: manifest
       env:
-        NOTES_FILE: ${{ inputs.notes-file }}
         BINARIES: ${{ inputs.binaries }}
       run: |
         python3 - <<'PY'
@@ -134,10 +130,6 @@ jobs:
             shutil.copyfile(path, dest / name)
             with path.open('rb') as stream:
                 manifest[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
-        notes = os.environ.get('NOTES_FILE')
-        if notes:
-            shutil.copyfile(notes, dest / 'CHANGELOG.md')
-            manifest['CHANGELOG.md'] = hashlib.sha256((dest / 'CHANGELOG.md').read_bytes()).hexdigest()
         if manifest:
             checksums = ''.join(f'{digest}  {name}\n' for name, digest in sorted(manifest.items()) if name != 'checksums.txt')
             (dest / 'SHA256SUMS').write_text(checksums)

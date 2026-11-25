@@ -60,6 +60,17 @@ class WorkflowConditionTests(unittest.TestCase):
                     values.append(value)
                 self.assertEqual(len(set(values)), len(values), values)
 
+    def test_release_has_no_unused_notes_file_input(self):
+        release = yaml.safe_load((WORKFLOWS / 'release.yaml').read_text())
+        self.assertNotIn('notes-file', release['on']['workflow_call']['inputs'])
+        step = next(step for step in release['jobs']['build']['steps'] if step.get('id') == 'manifest')
+        self.assertNotIn('NOTES_FILE', step.get('env', {}))
+        self.assertNotIn('NOTES_FILE', step.get('run', ''))
+
+    def test_image_qemu_defaults_to_false(self):
+        image = yaml.safe_load((WORKFLOWS / 'image.yaml').read_text())
+        self.assertEqual(image['on']['workflow_call']['inputs']['qemu'], {'type': 'boolean', 'default': False})
+
     def test_no_bare_always_in_generated_workflows(self):
         for path in sorted(WORKFLOWS.glob('*.yaml')):
             for number, line in enumerate(path.read_text().splitlines(), 1):
