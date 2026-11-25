@@ -15,7 +15,7 @@ WORKFLOWS = Path(__file__).parents[1] / '.github/workflows'
 
 class WorkflowConditionTests(unittest.TestCase):
     def test_reusable_workflows_select_runner(self):
-        for name in ('decide', 'image', 'release'):
+        for name in ('decide', 'image', 'release', 'go-checks'):
             with self.subTest(workflow=name):
                 workflow = yaml.load((WORKFLOWS / f'{name}.yaml').read_text(), Loader=yaml.BaseLoader)
                 runner = workflow['on']['workflow_call']['inputs']['runs-on']
@@ -83,6 +83,68 @@ class WorkflowConditionTests(unittest.TestCase):
                 match = re.search(r'\buses: (\S+)(.*)$', line)
                 if match and not match.group(1).startswith('./'):
                     self.assertRegex(match.group(2), r'^ # v\d+\.\d+\.\d+$', f'{path.name}:{number} uses lacks version comment')
+
+
+class GoChecksTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.workflow = yaml.safe_load((WORKFLOWS / 'go-checks.yaml').read_text())
+        cls.inputs = cls.workflow['on']['workflow_call']['inputs']
+        cls.jobs = cls.workflow['jobs']
+        cls.steps = cls.jobs['go']['steps']
+
+    def test_pilot_steps_keep_their_order(self):
+        names = [step.get('name') or step['uses'].split('@')[0] for step in self.steps]
+        self.assertEqual(names, [
+            'actions/checkout', 'actions/setup-node', 'actions/setup-go', 'goreleaser/goreleaser-action',
+            'Prepare build inputs', 'Tidy', 'Check for reachable Go vulnerabilities',
+            'golangci/golangci-lint-action', 'Lint', 'Fail if there are any changes', 'Test', 'Build snapshot',
+        ])
+        commands = [step['run'] for step in self.steps if 'run' in step]
+        self.assertIn('make tidy', commands)
+        self.assertIn('make lint', commands)
+        self.assertIn('git diff --exit-code', commands)
+        self.assertIn('make test', commands)
+        self.assertTrue(any(re.fullmatch(r'go run golang\.org/x/vuln/cmd/govulncheck@v[\d.]+ \./\.\.\.', command)
+                            for command in commands))
+        self.assertEqual(self.inputs['goreleaser-id']['default'], 'all')
+        self.assertEqual(self.workflow['permissions'], {'contents': 'read'})
+        for job in self.jobs.values():
+            checkout_options = job['steps'][0]['with']
+            self.assertEqual(checkout_options, {'ref': '${{ github.sha }}', 'fetch-depth': 0,
+                                               'persist-credentials': False})
+
+    def test_caller_options_reach_the_tools(self):
+        node = self.steps[1]
+        self.assertEqual(node['if'], "${{ inputs.node-version != '' }}")
+        self.assertEqual(node['with']['node-version'], '${{ inputs.node-version }}')
+        self.assertEqual(node['with']['cache-dependency-path'], '${{ inputs.node-cache-dependency-path }}')
+        self.assertEqual(self.steps[2]['with']['go-version-file'], 'go.mod')
+        self.assertEqual(self.steps[4]['env']['PREPARE'], '${{ inputs.prepare-command }}')
+        self.assertEqual(self.steps[7]['with']['version'], '${{ inputs.lint-version }}')
+        self.assertIn("format('--build-tags={0}', inputs.build-tags)", self.steps[7]['with']['args'])
+        self.assertIn("format('-tags={0}', inputs.build-tags)", self.jobs['go']['env']['GOFLAGS'])
+
+    def test_optional_jobs_are_opt_in_and_do_not_publish(self):
+        for name, workflow_input in [('chart', 'chart-path'), ('container', 'container-context')]:
+            with self.subTest(job=name):
+                self.assertEqual(self.inputs[workflow_input], {'type': 'string', 'default': ''})
+                self.assertEqual(self.jobs[name]['if'], "${{ inputs." + workflow_input + " != '' }}")
+        self.assertEqual(self.jobs['chart']['steps'][-1]['env']['CHART_PATH'], '${{ inputs.chart-path }}')
+        container_options = self.jobs['container']['steps'][-1]['with']
+        self.assertEqual(container_options, {'context': '${{ inputs.container-context }}', 'push': False})
+
+    def test_snapshot_command_preserves_single_target_build(self):
+        snapshot = self.steps[-1]
+        self.assertEqual(snapshot['if'], self.steps[3]['if'])
+        self.assertEqual(snapshot['if'], "${{ inputs.goreleaser-id != '' }}")
+        self.assertEqual(snapshot['env']['GORELEASER_ID'], '${{ inputs.goreleaser-id }}')
+        result = subprocess.run(
+            ['bash', '-ec', 'goreleaser() { printf "%s\\n" "$@"; }\n' + snapshot['run']],
+            env={'GORELEASER_ID': 'app'}, check=True, capture_output=True, text=True,
+        )
+        self.assertEqual(result.stdout.splitlines(),
+                         ['build', '--clean', '--snapshot', '--single-target', '--id', 'app', '--skip=before'])
 
 
 class ImageBuildTests(unittest.TestCase):

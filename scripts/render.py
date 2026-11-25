@@ -18,11 +18,14 @@ PINS = {
     'upload': 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2',
     'download': 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2',
     'helm': 'azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0',
+    'checks-go': 'actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0',
+    'golangci-lint': 'golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0',
 }
 
 
 HELM_VERSION = 'v4.3.1'  # renovate: datasource=github-releases depName=helm packageName=helm/helm
 ARM_RUNNER_VERSION = '26.04-arm'  # renovate: datasource=github-runners depName=ubuntu
+GOVULNCHECK_VERSION = 'v1.9.0'  # renovate: datasource=go depName=golang.org/x/vuln
 
 
 def pin_ref(name):
@@ -79,6 +82,80 @@ def tools_setup(*, release_binaries=False):
         action('goreleaser', **{'if': '${{ ' + goreleaser_condition + ' }}',
                                'with': {'version': '${{ inputs.goreleaser-version }}', 'install-only': True}}),
     ]
+
+
+def go_checks_workflow():
+    return {
+        'name': 'Go checks',
+        'on': {'workflow_call': {'inputs': {
+            'runs-on': inp('ubuntu-latest'),
+            'build-tags': inp(),
+            'node-version': inp(),
+            'node-cache-dependency-path': inp(),
+            'prepare-command': inp(),
+            'lint-version': inp(),
+            'goreleaser-version': inp('~> v2'),
+            'goreleaser-id': inp('all'),
+            'chart-path': inp(),
+            'container-context': inp(),
+        }}},
+        'permissions': {'contents': 'read'},
+        'jobs': {
+            'go': {
+                'runs-on': '${{ inputs.runs-on }}',
+                'env': {'GOFLAGS': "${{ inputs.build-tags != '' && format('-tags={0}', inputs.build-tags) || '' }}"},
+                'steps': [
+                    checkout(),
+                    action('node', **{'if': "${{ inputs.node-version != '' }}", 'with': {
+                        'node-version': '${{ inputs.node-version }}',
+                        'cache': "${{ inputs.node-cache-dependency-path != '' && 'npm' || '' }}",
+                        'cache-dependency-path': '${{ inputs.node-cache-dependency-path }}',
+                        'package-manager-cache': False,
+                    }}),
+                    action('checks-go', **{'with': {
+                        'go-version-file': 'go.mod', 'cache': True, 'cache-dependency-path': 'go.sum',
+                    }}),
+                    action('goreleaser', **{'if': "${{ inputs.goreleaser-id != '' }}", 'with': {
+                        'version': '${{ inputs.goreleaser-version }}', 'install-only': True,
+                    }}),
+                    {'name': 'Prepare build inputs', 'if': "${{ inputs.prepare-command != '' }}",
+                     'env': {'PREPARE': '${{ inputs.prepare-command }}'}, 'run': 'bash -euo pipefail -c "$PREPARE"'},
+                    {'name': 'Tidy', 'run': 'make tidy'},
+                    {'name': 'Check for reachable Go vulnerabilities',
+                     'run': f'go run golang.org/x/vuln/cmd/govulncheck@{GOVULNCHECK_VERSION} ./...'},
+                    action('golangci-lint', **{'with': {
+                        'version': '${{ inputs.lint-version }}',
+                        'args': "${{ inputs.build-tags != '' && format('--build-tags={0}', inputs.build-tags) || '' }}",
+                    }}),
+                    {'name': 'Lint', 'run': 'make lint'},
+                    {'name': 'Fail if there are any changes', 'run': 'git diff --exit-code'},
+                    {'name': 'Test', 'run': 'make test'},
+                    {'name': 'Build snapshot', 'if': "${{ inputs.goreleaser-id != '' }}",
+                     'env': {'GORELEASER_ID': '${{ inputs.goreleaser-id }}'},
+                     'run': 'goreleaser build --clean --snapshot --single-target --id "$GORELEASER_ID" --skip=before'},
+                ],
+            },
+            'chart': {
+                'if': "${{ inputs.chart-path != '' }}",
+                'runs-on': '${{ inputs.runs-on }}',
+                'steps': [
+                    checkout(),
+                    action('helm', **{'with': {'version': HELM_VERSION}}),
+                    {'name': 'Lint chart', 'env': {'CHART_PATH': '${{ inputs.chart-path }}'},
+                     'run': 'helm lint -- "$CHART_PATH"'},
+                ],
+            },
+            'container': {
+                'if': "${{ inputs.container-context != '' }}",
+                'runs-on': '${{ inputs.runs-on }}',
+                'steps': [
+                    checkout(),
+                    action('buildx'),
+                    action('build', **{'with': {'context': '${{ inputs.container-context }}', 'push': False}}),
+                ],
+            },
+        },
+    }
 
 
 secrets = {name: {'required': True} for name in ['DOCKER_USERNAME', 'DOCKER_PASSWORD']}
@@ -266,7 +343,8 @@ for workflow in [image, release]:
         'run': '[[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]\nprintf "%s  %s\\n" "$EXPECTED_SHA256" "$ARTIFACT_PATH" | sha256sum --strict --check -\n'})
 
 def main():
-    workflows = {'decide.yaml': decide, 'image.yaml': image, 'release.yaml': release}
+    workflows = {'decide.yaml': decide, 'image.yaml': image, 'release.yaml': release,
+                 'go-checks.yaml': go_checks_workflow()}
     failed = False
     for name, document in workflows.items():
         rendered = '# Generated by scripts/render.py; edit scripts and regenerate.\n' + annotate(yaml.safe_dump(document, sort_keys=False, width=120))
