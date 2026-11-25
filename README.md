@@ -53,6 +53,7 @@ Chart jobs install Helm with a setup action.
 
 On a self-hosted x64 runner, build arm64 images by cross-compiling when the
 Dockerfile can package the binaries without executing target-platform code.
+`qemu` defaults to `false`, so omit it unless the build needs emulation.
 Set `qemu: true` when the build needs to execute arm64 code.
 `docker/setup-qemu-action` requires a Docker daemon the runner user can access.
 Reserve `native-arm: true` for builds that should use the pinned GitHub-hosted

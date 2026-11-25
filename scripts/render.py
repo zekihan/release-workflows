@@ -181,7 +181,7 @@ release = {
         'runs-on': inp('ubuntu-latest'),
         'version': inp(), 'image': inp(), 'image-digest': inp(), 'chart-path': inp(), 'chart-name': inp(),
         'binaries': inp(True, 'boolean'), 'github-release': inp(True, 'boolean'),
-        'prepare-command': inp('true'), 'verify-command': inp('true'), 'notes-file': inp(),
+        'prepare-command': inp('true'), 'verify-command': inp('true'),
         'node-version': inp(), 'goreleaser-version': inp('v2.20.0')},
         'secrets': {key: {'required': False} for key in secrets}}},
     'permissions': {'contents': 'read'},
@@ -198,8 +198,7 @@ release = {
                       {'if': "${{ inputs.chart-path != '' }}", 'env': {'CHART_PATH': '${{ inputs.chart-path }}',
                           'CHART_NAME': '${{ inputs.chart-name }}', 'VERSION': '${{ inputs.version }}'},
                        'run': 'helm package "$CHART_PATH" --version "$VERSION" --app-version "$VERSION" --destination dist\nhelm lint "dist/$CHART_NAME-$VERSION.tgz"\n'},
-                      {'id': 'manifest', 'env': {'NOTES_FILE': '${{ inputs.notes-file }}',
-                          'BINARIES': '${{ inputs.binaries }}'}, 'run': '''python3 - <<'PY'
+                      {'id': 'manifest', 'env': {'BINARIES': '${{ inputs.binaries }}'}, 'run': '''python3 - <<'PY'
 import hashlib, json, os, pathlib, shutil
 dest = pathlib.Path('release-assets')
 dest.mkdir(exist_ok=True)
@@ -226,10 +225,6 @@ for name, path in paths.items():
     shutil.copyfile(path, dest / name)
     with path.open('rb') as stream:
         manifest[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
-notes = os.environ.get('NOTES_FILE')
-if notes:
-    shutil.copyfile(notes, dest / 'CHANGELOG.md')
-    manifest['CHANGELOG.md'] = hashlib.sha256((dest / 'CHANGELOG.md').read_bytes()).hexdigest()
 if manifest:
     checksums = ''.join(f'{digest}  {name}\\n' for name, digest in sorted(manifest.items()) if name != 'checksums.txt')
     (dest / 'SHA256SUMS').write_text(checksums)
