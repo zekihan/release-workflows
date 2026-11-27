@@ -25,7 +25,7 @@ PINS = {
 
 HELM_VERSION = 'v4.3.1'  # renovate: datasource=github-releases depName=helm packageName=helm/helm
 ARM_RUNNER_VERSION = '26.04-arm'  # renovate: datasource=github-runners depName=ubuntu
-GOVULNCHECK_VERSION = 'v1.9.0'  # renovate: datasource=go depName=golang.org/x/vuln
+GOVULNCHECK_VERSION = 'v1.10.0'  # renovate: datasource=go depName=golang.org/x/vuln
 
 
 def pin_ref(name):
