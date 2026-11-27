@@ -23,7 +23,7 @@ PINS = {
 }
 
 
-HELM_VERSION = 'v4.3.1'  # renovate: datasource=github-releases depName=helm packageName=helm/helm
+HELM_VERSION = 'v4.3.2'  # renovate: datasource=github-releases depName=helm packageName=helm/helm
 ARM_RUNNER_VERSION = '26.04-arm'  # renovate: datasource=github-runners depName=ubuntu
 GOVULNCHECK_VERSION = 'v1.9.0'  # renovate: datasource=go depName=golang.org/x/vuln
 
